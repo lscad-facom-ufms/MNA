@@ -93,8 +93,6 @@ def read_input(args, source_dir):
     numNodes = len(V_R)
     edge_nodes = df_info["edge_nodes"].iloc[0]
 
-    print("colocou nas variáveis")
-
     adjList = [[] for _ in range(numNodes)]
 
     for row in df_edges[['source', 'target', 'latency']].itertuples(index=False, name=None):
