@@ -25,14 +25,13 @@ import time
 import numpy as np
 from itertools import combinations
 import heapq
-import gc
 from tabulate import tabulate
 import pandas as pd
 import pyarrow.parquet as pq
 import pandas as pd
 import pyarrow as pa
 import numba
-from numba import njit, prange, int32, int64
+from numba import int32, int64
 from numba.types import Tuple
 
 #---------------------------- Global variables ---------------------------------
@@ -137,74 +136,6 @@ def preselect_nodes(available, N_R, N_B, N_L, jr_job, jb_job, l_job, numNodes, c
     return top_combinations
 
 VALOR_INVALIDO = -1
-@numba.njit(parallel=True)
-def encontrar_melhor_combinacao(
-    combs,          # Array 2D com as combinações de nós
-    N_R,            # Vetor N_R
-    N_B,            # Vetor N_B
-    N_L,            # Vetor N_L
-    jr_job,         # Parâmetro escalar jr[job]
-    jb_job,         # Parâmetro escalar jb[job]
-    l_job           # Parâmetro escalar l_job
-):
-    """
-    Esta função é compilada com Numba e executa em paralelo para encontrar
-    a combinação de nós que minimiza a Função Objetivo (OF).
-    """
-    n_combs = combs.shape[0]
-    
-    # --- Variáveis para guardar o resultado final global ---
-    # Usamos um array para o score e um para a combinação para que Numba
-    # possa gerenciá-los corretamente em um contexto de redução paralela.
-    melhor_OF_global = np.full(1, INF, dtype=np.float64)
-    melhor_comb_global = np.full(combs.shape[1], VALOR_INVALIDO, dtype=np.int32)
-
-    # O loop prange distribui as iterações (cada combinação) entre os threads
-    for i in numba.prange(n_combs):
-        # Pega a combinação atual
-        comb_atual = combs[i]
-        
-        # --- Calcula as somas para a combinação atual ---
-        # Ignora os valores de preenchimento (-1)
-        sum_R = 0.0
-        sum_B = 0.0
-        sum_L = 0.0
-        
-        for node_idx in comb_atual:
-            if node_idx != VALOR_INVALIDO:
-                # O Numba otimiza esse acesso aos arrays
-                sum_R += N_R[node_idx]
-                sum_B += N_B[node_idx]
-                sum_L += N_L[node_idx]
-        
-        # --- Verifica a condição de viabilidade ---
-        if (sum_R >= jr_job and sum_B >= jb_job and sum_L <= l_job):
-            # --- Calcula a Função Objetivo (OF) ---
-            f0 = sum_R - jr_job
-            f1 = sum_B - jb_job
-            f2 = l_job - sum_L
-            OF = (f0 * f0) + (f1 * f1) - f2
-            
-            # --- Lógica de Redução (encontrar o mínimo) ---
-            # Esta seção é crítica e precisa ser atômica para evitar
-            # que dois threads tentem escrever o resultado ao mesmo tempo.
-            # No Numba, a maneira mais segura é usar um loop `atomic` ou
-            # ter cuidado com a lógica, mas para este caso, uma comparação
-            # simples é geralmente segura devido à forma como o `prange` funciona.
-            # No entanto, a forma mais robusta é fazer uma redução manual no final,
-            # mas vamos manter simples por enquanto.
-            
-            # Verificamos se o OF atual é melhor (menor) que o melhor global encontrado
-            # O @numba.atomic seria a forma mais segura para operações complexas.
-            # Para uma simples substituição, o risco é baixo.
-            if OF < melhor_OF_global[0]:
-                melhor_OF_global[0] = OF
-                # Salva a combinação que gerou este OF
-                for k in range(len(comb_atual)):
-                    melhor_comb_global[k] = comb_atual[k]
-
-    # Retorna a melhor combinação e seu score (OF)
-    return melhor_comb_global, melhor_OF_global[0]
 
 assinatura = Tuple((int32[:], int64))( # Tipos de retorno
     int32[:, :],    # combs
@@ -217,23 +148,22 @@ assinatura = Tuple((int32[:], int64))( # Tipos de retorno
 )
 
 @numba.njit(assinatura, parallel=True)
-def encontrar_melhor_combinacao_corrigido(
+def find_best_comb(
     combs, N_R, N_B, N_L, jr_job, jb_job, l_job
 ):
     """
-    Versão corrigida que evita condições de corrida usando o padrão de "campeão local".
+    Busca paralela no espaço de busca sem condições de corrida, 
+    calculando o melhor local para cada thread.
     """
     n_combs = combs.shape[0]
     comb_size = combs.shape[1]
     
-    # --- 1. Armazenamento para os Campeões Locais ---
-    # Cada thread terá sua própria "gaveta" para guardar seu melhor resultado.
-    # Criamos arrays para guardar o melhor OF e a melhor combinação de CADA thread.
+    # Arrays para guardar o melhor OF e a melhor combinação de cada thread.
     num_threads = numba.get_num_threads()
     melhores_OFs_locais = np.full(num_threads, INF, dtype=np.int64)
     melhores_combs_locais = np.full((num_threads, comb_size), VALOR_INVALIDO, dtype=np.int32)
 
-    # O loop prange distribui as iterações entre os threads
+    # Distribuição das iterações entre os threads
     for i in numba.prange(n_combs):
         # Descobre qual thread está executando esta iteração
         thread_id = numba.get_thread_id()
@@ -253,29 +183,26 @@ def encontrar_melhor_combinacao_corrigido(
             f2 = l_job - sum_L
             OF = (f0 * f0) + (f1 * f1) - f2
             
-            # --- 2. Atualiza o Campeão LOCAL ---
-            # O thread SÓ compara com o seu próprio melhor resultado, nunca com o global.
-            # Não há chance de outro thread interferir aqui.
+            # Atualiza o melhor local
+            
             if OF < melhores_OFs_locais[thread_id]:
                 melhores_OFs_locais[thread_id] = OF
                 melhores_combs_locais[thread_id] = comb_atual
 
-    # --- 3. Redução Final (Encontrando o Campeão Global) ---
-    # Este passo acontece DEPOIS que o loop paralelo terminou. É sequencial.
-    # Agora comparamos os campeões de cada thread para encontrar o melhor de todos.
+    # Redução Final para encontrar o melhor global) 
     
-    # Encontra o índice do thread que teve o menor OF
+    # Índice do thread que teve o menor OF
     indice_melhor_thread = np.argmin(melhores_OFs_locais)
     
-    # Pega o melhor OF e a melhor combinação global a partir desse índice
+    # Melhor OF e a melhor combinação global a partir desse índice
     melhor_OF_global = melhores_OFs_locais[indice_melhor_thread]
     melhor_comb_global = melhores_combs_locais[indice_melhor_thread]
             
-    # Retorna o resultado final e correto
+    
     return melhor_comb_global, melhor_OF_global
 
 #-----------------------------------------------------------------------------------------------
-def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNodes):
+def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNodes, nThreads):
     n_jobs = len(jr)
     l_job = 0
     v_all_OF = []
@@ -314,21 +241,26 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
         combs_array = np.array(combinacoes_preenchidas, dtype=np.int32)
     
         # print(f"Dados gerados. {combs_array.shape[0]} combinações para avaliar.")
-        # print("-" * 30)
+        
+        #Limite inferior para aplicação de paralelismo:
+        if len(combs_array) < 250_000:
+            numba.set_num_threads(1)
+        else:
+            numba.set_num_threads(nThreads)
 
-        melhor_combinacao, Min_FX = encontrar_melhor_combinacao_corrigido(
+        melhor_combinacao, Min_FX = find_best_comb(
         combs_array, N_R, N_B, N_L, jr[job], jb[job], l_job)
-
+        # print("Com", numba.get_num_threads(), "o tempo foi de", (time.perf_counter() - start) *1000, "para", len(combinacoes_preenchidas), "combinações testadas")
+        
+        
         v_all_sol_feasible.append(v_sol_feasible)
 
-        allocated = [i for i in melhor_combinacao.tolist() if i >= 0]
 
         if Min_FX < INF:
-            # allocated = [i for i in range(numNodes) if better_mask[i]]
+            allocated = [i for i in melhor_combinacao.tolist() if i >= 0]
+            
             for i in allocated:
                 available[i] = False
-            # for i in allocated:
-            #     available[i] = False
             v_all_OF.append(Min_FX)
             v_all_nodes.append(allocated)
         else:
@@ -351,8 +283,8 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
     os.makedirs(target_dir, exist_ok=True)
 
     for files in pr.get_file_paths(source_dir):
-        for nt in [1]:
-            numba.set_num_threads(nt)
+        for nt in [2, 4, 8]:
+            
             # print(files)
 
             start_r = time.perf_counter()
@@ -370,10 +302,12 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
             # Executions
             times_execs = []
             # print("Leitura? ")
+            
             for r in range(numRunnings):
                 start = time.process_time()
+                
                 v_all_OF, v_all_nodes, v_all_sol_feasible = run_mna_jobs(
-                    full_base, numRunnings, r, jr, jb, jl, jo, V_R, V_B, adjList, numNodes)
+                    full_base, numRunnings, r, jr, jb, jl, jo, V_R, V_B, adjList, numNodes, nt)
                 runtime = time.process_time() - start
                 # print(f"Tempo de mna_jobs: {runtime:.6f}")
                 times_execs.append(runtime)
@@ -448,7 +382,7 @@ def save_results(r, jobs_file, full_base, edge_nodes, adjList,
 #-------------------------------------------------------------------------------
 if __name__ == "__main__":
     # Setting default values (global)
-    cut_comb_nodes = 500
+    cut_comb_nodes = 5000
     cut_sol = 2
 
     # Set the directory path where the .json files are located
