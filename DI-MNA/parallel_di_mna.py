@@ -243,7 +243,7 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
         # print(f"Dados gerados. {combs_array.shape[0]} combinações para avaliar.")
         
         #Limite inferior para aplicação de paralelismo:
-        if len(combs_array) < 250_000:
+        if len(combs_array) < min_comb_threads:
             numba.set_num_threads(1)
         else:
             numba.set_num_threads(nThreads)
@@ -384,6 +384,7 @@ if __name__ == "__main__":
     # Setting default values (global)
     cut_comb_nodes = 5000
     cut_sol = 2
+    min_comb_threads = 250_000
 
     # Set the directory path where the .json files are located
 
