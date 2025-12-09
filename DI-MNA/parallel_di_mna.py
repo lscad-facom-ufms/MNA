@@ -317,7 +317,11 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
                 file_path = save_results(r, files[3], full_base, edge_nodes, adjList,
                             jr, jb, jl, jo, V_R, V_B,
                             V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt)
-                email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
+                
+                try:
+                    email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
+                except:
+                    pass
             
                 
 # Salva resultados em .txt e estatísticas na mesma abertura do arquivo
