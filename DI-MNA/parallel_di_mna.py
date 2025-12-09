@@ -306,11 +306,11 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
             # print("Leitura? ")
             
             for r in range(numRunnings):
-                start = time.process_time()
+                start = time.perf_counter()
                 
                 v_all_OF, v_all_nodes, v_all_sol_feasible = run_mna_jobs(
                     full_base, numRunnings, r, jr, jb, jl, jo, V_R, V_B, adjList, numNodes, nt)
-                runtime = time.process_time() - start
+                runtime = time.perf_counter() - start
                 # print(f"Tempo de mna_jobs: {runtime:.6f}")
                 times_execs.append(runtime)
 
