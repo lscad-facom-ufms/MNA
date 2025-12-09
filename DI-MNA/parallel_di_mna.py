@@ -20,6 +20,8 @@ if __name__ == "__main__":
     import parquetReader as pr
     source_dir, target_dir = cl.get_target_dirs(argv)
 
+import email_sender
+
 import json
 import time
 import numpy as np
@@ -283,7 +285,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
     os.makedirs(target_dir, exist_ok=True)
 
     for files in pr.get_file_paths(source_dir):
-        for nt in [2, 4, 8]:
+        for nt in [2]:
             
             # print(files)
 
@@ -312,9 +314,10 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
                 # print(f"Tempo de mna_jobs: {runtime:.6f}")
                 times_execs.append(runtime)
 
-                save_results(r, files[3], full_base, edge_nodes, adjList,
+                file_path = save_results(r, files[3], full_base, edge_nodes, adjList,
                             jr, jb, jl, jo, V_R, V_B,
                             V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt)
+                email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
             
                 
 # Salva resultados em .txt e estatísticas na mesma abertura do arquivo
@@ -372,6 +375,7 @@ def save_results(r, jobs_file, full_base, edge_nodes, adjList,
             mean, sd = np.mean(times_execs), np.std(times_execs, ddof=(0 if numRunnings==1 else 1))
             out.write(f"\n mean: {mean:,.5f}\n   sd: {sd:,.5f}\n")
             out.write("-----------------------------------------------------------------\n")
+    return output_path
 #--------------------------------------------------------------------------------------------------------------------------------------------
 # Start of execution (main):
 
@@ -389,7 +393,7 @@ if __name__ == "__main__":
     # Set the directory path where the .json files are located
 
     # Number of runnings of a given configuration
-    numRunnings = 5
+    numRunnings = 1
 
     # Create the output folder if it doesn't exist; keep if it already exists
     if not os.path.exists(target_dir):
