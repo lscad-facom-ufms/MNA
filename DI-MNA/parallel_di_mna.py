@@ -22,6 +22,7 @@ if __name__ == "__main__":
 
 import email_sender
 
+import math
 import json
 import time
 import numpy as np
@@ -149,8 +150,8 @@ assinatura = Tuple((int32[:], int64))( # Tipos de retorno
     int64         # l_job
 )
 
-@numba.njit(assinatura, parallel=True)
-def find_best_comb(
+
+def core_find_best_comb(
     combs, N_R, N_B, N_L, jr_job, jb_job, l_job
 ):
     """
@@ -203,6 +204,11 @@ def find_best_comb(
     
     return melhor_comb_global, melhor_OF_global
 
+# function declaration for thread using
+find_best_comb_par = numba.njit(assinatura, parallel=True)(core_find_best_comb)
+find_best_comb = numba.njit(assinatura, parallel=False)(core_find_best_comb)
+
+
 #-----------------------------------------------------------------------------------------------
 def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNodes, nThreads):
     n_jobs = len(jr)
@@ -210,6 +216,8 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
     v_all_OF = []
     v_all_nodes = []
     v_all_sol_feasible = []
+    v_times = []
+    v_num_combs = []
     available= [True] * numNodes  # Allocated nodes management. In the beginning, all nodes are available
     # print("Iniciar ciclo de jobs")
     for job in range(n_jobs):
@@ -221,42 +229,54 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
         N_L = np.array(get_latencies(source, adjList, numNodes))
 
         Min_FX = INF
-        better_mask = [0] * numNodes
         v_sol_feasible = 0 # Nº feasible solutions
         #---------------------------------------------------------------------------------------------------------------------
         # Hyperparameters for cutting combinations considered and maximum number of nodes in the generated solutions
         # cut_comb_nodes = 500 # Considers the cut_comb_nodes combinations, according to DI, for each job.
         # cut_sol = 2 # Considers a maximum of 2 nodes when allocating a job
         #---------------------------------------------------------------------------------------------------------------------
+        
         filtered_nodes = preselect_nodes(available, N_R, N_B, N_L, jr[job], jb[job], l_job, numNodes, cut_comb_nodes, cut_sol)
+        
         # Flatten combinations to get only node indices (Ordered according to DI criteria)
         filtered_nodes = set(i for combo in filtered_nodes for i in combo)
+
         # Reduces the search space to only the filtered nodes (vector_space_generator=filtered_nodes)
         VALOR_INVALIDO = -1
-        combinacoes_preenchidas = []
-        for i in range(1, cut_sol + 1):
-            for comb in combinations(filtered_nodes, i):
-                comb_lista = list(comb)
-                comb_lista.extend([VALOR_INVALIDO] * (cut_sol - len(comb_lista)))
-                combinacoes_preenchidas.append(comb_lista)
 
-        combs_array = np.array(combinacoes_preenchidas, dtype=np.int32)
-    
-        # print(f"Dados gerados. {combs_array.shape[0]} combinações para avaliar.")
-        
+        n_nodes = len(filtered_nodes)
+        total_combinations = 0
+        for k in range(1, cut_sol + 1):
+            total_combinations += math.comb(n_nodes, k)
+
+        combs_array = np.full((total_combinations, cut_sol), VALOR_INVALIDO, dtype=np.int32)
+
+        # start = time.perf_counter_ns()
+
+        cursor = 0
+        for k in range(1, cut_sol + 1):
+            for comb in combinations(filtered_nodes, k):
+                combs_array[cursor, :k] = comb
+                cursor += 1
+
+        v_num_combs.append(combs_array.shape[0])
+
+        start = time.perf_counter()
+
         #Limite inferior para aplicação de paralelismo:
         if len(combs_array) < min_comb_threads:
-            numba.set_num_threads(1)
-        else:
-            numba.set_num_threads(nThreads)
 
-        melhor_combinacao, Min_FX = find_best_comb(
-        combs_array, N_R, N_B, N_L, jr[job], jb[job], l_job)
-        # print("Com", numba.get_num_threads(), "o tempo foi de", (time.perf_counter() - start) *1000, "para", len(combinacoes_preenchidas), "combinações testadas")
-        
+            melhor_combinacao, Min_FX = find_best_comb(
+            combs_array, N_R, N_B, N_L, jr[job], jb[job], l_job)
+        else:
+            melhor_combinacao, Min_FX = find_best_comb_par(
+            combs_array, N_R, N_B, N_L, jr[job], jb[job], l_job)
+
+        # Cálculo do tempo da exploração do espaço de busca
+        time_numba = time.perf_counter() - start
+        v_times.append(time_numba)
         
         v_all_sol_feasible.append(v_sol_feasible)
-
 
         if Min_FX < INF:
             allocated = [i for i in melhor_combinacao.tolist() if i >= 0]
@@ -269,7 +289,7 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
             v_all_OF.append(0)
             v_all_nodes.append([])
         
-    return v_all_OF, v_all_nodes, v_all_sol_feasible
+    return v_all_OF, v_all_nodes, v_all_sol_feasible, v_num_combs, v_times
 
 def run_mna_iot_batch(source_dir, target_dir, numRunnings):
     """
@@ -303,20 +323,25 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
             
             # Executions
             times_execs = []
+            jobs_times = []
             # print("Leitura? ")
             
             for r in range(numRunnings):
                 start = time.perf_counter()
                 
-                v_all_OF, v_all_nodes, v_all_sol_feasible = run_mna_jobs(
+                v_all_OF, v_all_nodes, v_all_sol_feasible, v_num_combs, v_times = run_mna_jobs(
                     full_base, numRunnings, r, jr, jb, jl, jo, V_R, V_B, adjList, numNodes, nt)
                 runtime = time.perf_counter() - start
                 # print(f"Tempo de mna_jobs: {runtime:.6f}")
                 times_execs.append(runtime)
 
+                job_time = sum(v_times)
+                jobs_times.append(job_time)
+
                 file_path = save_results(r, files[3], full_base, edge_nodes, adjList,
                             jr, jb, jl, jo, V_R, V_B,
-                            V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt)
+                            V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt,
+                            v_num_combs, v_times, jobs_times, job_time)
                 
                 try:
                     email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
@@ -328,7 +353,8 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
 def save_results(r, jobs_file, full_base, edge_nodes, adjList,
                 jr, jb, jl, jo, V_R, V_B, V_Busy, V_Inactive, 
                 v_all_OF, v_all_nodes, v_all_sol_feasible,
-                times_execs, nt):
+                times_execs, nt,
+                v_num_combs, v_times, jobs_times, job_time):
     
     runtime = times_execs[-1]
 
@@ -337,12 +363,14 @@ def save_results(r, jobs_file, full_base, edge_nodes, adjList,
     with open(output_path, 'w', encoding="utf-8") as out:
         out.write(f"Input file: {jobs_file}\nNumber of jobs: {len(jr)}\n\n")
         rows = (
-            [i, f"[{jr[i]}, {jb[i]}, {jl[i]}, {jo[i]}]", format_float(of), str(sorted(nodes))]
+            [i, f"[{jr[i]}, {jb[i]}, {jl[i]}, {jo[i]}]", format_float(of), str(sorted(nodes)), 
+             v_num_combs[i], format_float(v_times[i])]
             for i, (of, nodes) in enumerate(zip(v_all_OF, v_all_nodes))
         )
-        table = tabulate(rows, headers=["Job", "[Jr,Jb,Jl,Jo]", "OF", "Allocated nodes"], tablefmt="plain")
+        table = tabulate(rows, headers=["Job", "[Jr,Jb,Jl,Jo]", "OF", "Allocated nodes", "num_combs", "time"],
+                          tablefmt="plain")
         out.write(table)
-        out.write(f"\n\nTotal OF: {format_float(np.sum(v_all_OF)).strip()}\nRuntime: {runtime:.5f} sec\n")
+        out.write(f"\n\nTotal OF: {format_float(np.sum(v_all_OF)).strip()}\nRuntime: {runtime:.5f} sec\nJob time: {job_time:.5f}")
 
         # Última execução: salva arquivos parquet e estatísticas dentro do mesmo with
         if r == numRunnings - 1:
@@ -377,6 +405,12 @@ def save_results(r, jobs_file, full_base, edge_nodes, adjList,
             for i, t in enumerate(times_execs):
                 out.write(f"\n {i:4d}:  {t:,.5f}")
             mean, sd = np.mean(times_execs), np.std(times_execs, ddof=(0 if numRunnings==1 else 1))
+            out.write(f"\n mean: {mean:,.5f}\n   sd: {sd:,.5f}\n")
+            
+            out.write("\nJob times:\n")
+            for i, t in enumerate(jobs_times):
+                out.write(f"\n {i:4d}:  {t:,.5f}")
+            mean, sd = np.mean(jobs_times), np.std(jobs_times, ddof=(0 if numRunnings==1 else 1))
             out.write(f"\n mean: {mean:,.5f}\n   sd: {sd:,.5f}\n")
             out.write("-----------------------------------------------------------------\n")
     return output_path
