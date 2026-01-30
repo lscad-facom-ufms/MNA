@@ -306,7 +306,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
 
     for files in pr.get_file_paths(source_dir):
         for nt in [2]:
-            
+           numba.set_num_threads(nt) 
             # print(files)
 
             start_r = time.perf_counter()
