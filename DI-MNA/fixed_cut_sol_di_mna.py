@@ -345,7 +345,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
     os.makedirs(target_dir, exist_ok=True)
 
     for files in pr.get_file_paths(source_dir):
-        for nt in [1, 2, 4]:
+        for nt in [1, 2, 4, 6, 8, 12, 16]:
             
             numba.set_num_threads(nt)
             # print(files)
@@ -364,7 +364,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
             
             # Executions
             times_execs = []
-            jobs_times = []
+            numba_times = []
             # print("Leitura? ")
             
             for r in range(numRunnings):
@@ -375,13 +375,13 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
                 runtime = time.perf_counter() - start
                 # print(f"Tempo de mna_jobs: {runtime:.6f}")
                 times_execs.append(runtime)
+                numba_times.append(v_times["numba"])
 
                 file_path = save_results(r, files[3], full_base, edge_nodes, adjList,
                             jr, jb, jl, jo, V_R, V_B,
                             V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt,
-                            v_num_combs, v_times)
+                            v_num_combs, v_times, numba_times)
                 
-                print(threading_layer())
                 try:
                     email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
                 except:
@@ -393,7 +393,7 @@ def save_results(r, jobs_file, full_base, edge_nodes, adjList,
                 jr, jb, jl, jo, V_R, V_B, V_Busy, V_Inactive, 
                 v_all_OF, v_all_nodes, v_all_sol_feasible,
                 times_execs, nt,
-                v_num_combs, v_times):
+                v_num_combs, v_times, v_numba_times):
     
     runtime = times_execs[-1]
 
@@ -459,6 +459,16 @@ def save_results(r, jobs_file, full_base, edge_nodes, adjList,
             mean, sd = np.mean(times_execs[1:]), 0 if numRunnings-1 == 1 else np.std(times_execs[1:], ddof=(0 if numRunnings==1 else 1))
             out.write(f"\n mean: {mean:,.5f}\n   sd: {sd:,.5f}\n")
             out.write("-----------------------------------------------------------------\n")
+            out.write("\nNumba Times:\n")
+            for i, t in enumerate(v_numba_times):
+                out.write(f"\n {i:4d}:  {t:,.5f}")
+            mean, sd = np.mean(v_numba_times), np.std(v_numba_times, ddof=(0 if numRunnings==1 else 1))
+            out.write(f"\n mean: {mean:,.5f}\n   sd: {sd:,.5f}\n")
+            out.write("\nFirst ignored:\n")
+            mean, sd = np.mean(v_numba_times[1:]), 0 if numRunnings-1 == 1 else np.std(v_numba_times[1:], ddof=(0 if numRunnings==1 else 1))
+            out.write(f"\n mean: {mean:,.5f}\n   sd: {sd:,.5f}\n")
+
+
     return output_path
 #--------------------------------------------------------------------------------------------------------------------------------------------
 # Start of execution (main):
@@ -472,12 +482,12 @@ if __name__ == "__main__":
     # Setting default values (global)
     cut_comb_nodes = 5000
     cut_sol = 2
-    min_comb_threads = 25_000
+    min_comb_threads = 250_000
 
     # Set the directory path where the .json files are located
 
     # Number of runnings of a given configuration
-    numRunnings = 2
+    numRunnings = 5
 
     # Create the output folder if it doesn't exist; keep if it already exists
     if not os.path.exists(target_dir):
