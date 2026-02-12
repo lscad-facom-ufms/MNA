@@ -62,7 +62,7 @@ def vector_space_generator(filtered_nodes, numNodes, cut_sol):
             yield mask
 
 # Based on Dijkstra's Algorithm
-def get_latencies(source, adjList, numNodes):
+def get_latencies(source, adjList, numNodes, job_l):
     latencies= [INF] * numNodes
     latencies[source] = 0
     heap = [(0, source)]
@@ -72,6 +72,8 @@ def get_latencies(source, adjList, numNodes):
         if curr_lat > latencies[u]:
             continue
         for v, weight in adjList[u]:
+            if curr_lat + weight > job_l:
+                continue
             if latencies[v] > curr_lat + weight:
                 latencies[v] = curr_lat + weight
                 heapq.heappush(heap, (latencies[v], v))
@@ -95,9 +97,23 @@ def preselect_nodes(available, N_R, N_B, N_L, jr_job, jb_job, l_job, cut_comb_no
     candidate_nodes = set()
     num_nodes = len (available)
     combs_found = 0
+
+    for i in range(num_nodes):
+        if combs_found == cut_comb_nodes:
+            break
+
+        if not available[i]:
+            continue
+
+        single_R = N_R[i]
+        single_B = N_B[i]
+        single_L = N_L[i]
+
+        if single_R >= jr_job and single_B >= jb_job and single_L <= l_job:
+            candidate_nodes.add(i)
+            combs_found += 1
     
     for i in range(num_nodes):
-        
         if combs_found == cut_comb_nodes:
             break
 
@@ -188,7 +204,7 @@ def core_find_best_comb(
 
 
     # Distribuição das iterações entre os threads
-    numba.set_parallel_chunksize(8)
+    numba.set_parallel_chunksize(10)
     for i in numba.prange(n_nodes):
         # Descobre qual thread está executando esta iteração
         thread_id = numba.get_thread_id()
@@ -270,7 +286,7 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
         l_job = jl[job] - t_c
         start_real = time.perf_counter()
 
-        N_L = np.array(get_latencies(source, adjList, numNodes))
+        N_L = np.array(get_latencies(source, adjList, numNodes, l_job))
         
         v_times["latencies"] += time.perf_counter() - start_real
 
@@ -328,6 +344,7 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
             v_all_nodes.append([])
     
         v_times["total"] += time.perf_counter() - start_real
+        print(job)
 
     return v_all_OF, v_all_nodes, v_all_sol_feasible, v_num_combs, v_times
 
@@ -345,13 +362,29 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
     os.makedirs(target_dir, exist_ok=True)
 
     for files in pr.get_file_paths(source_dir):
-        for nt in [1, 2, 4, 6, 8, 12, 16]:
+        for nt in [4][:1]:
             
             numba.set_num_threads(nt)
             # print(files)
 
-            start_r = time.perf_counter()
+            # start_r = time.perf_counter()
             jr, jb, jl, jo, V_R, V_B, V_Busy, V_Inactive, numNodes, edge_nodes, adjList = pr.read_input(files, source_dir)
+            
+            # print("total:",len(edge_nodes))
+            
+            # origens = {}
+            # for i in edge_nodes:
+            #     origens[i] = 0
+            # for sas in jo:
+            #     origens[sas] += 1
+            #
+            #
+            # sabo = [(int(i), j) for i, j in origens.items() if j > 0]
+            #
+            # sabo.sort(key=lambda p: -p[1])
+            # print("used:", len(sabo))
+            # print(sabo)
+
 
             # Gives the jobs_file and the suffix of it and receives it's base name in return
             full_base = pr.full_base_name(files[3], files[-1])
@@ -381,7 +414,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
                             jr, jb, jl, jo, V_R, V_B,
                             V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt,
                             v_num_combs, v_times, numba_times)
-                
+                print(nt, r)
                 try:
                     email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
                 except:
@@ -487,7 +520,7 @@ if __name__ == "__main__":
     # Set the directory path where the .json files are located
 
     # Number of runnings of a given configuration
-    numRunnings = 5
+    numRunnings = 2
 
     # Create the output folder if it doesn't exist; keep if it already exists
     if not os.path.exists(target_dir):
