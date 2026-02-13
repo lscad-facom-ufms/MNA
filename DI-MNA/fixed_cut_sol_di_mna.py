@@ -34,13 +34,14 @@ import pyarrow.parquet as pq
 import pandas as pd
 import pyarrow as pa
 import numba
-from numba import int32, int64, threading_layer
+from numba import int32, int64, threading_layer, config
 from numba.types import Tuple
 
 #---------------------------- Global variables ---------------------------------
 INF = 10**12 # Infinite
 t_c = 1 # Time connection (t_c=1 ms)
 #-------------------------------------------------------------------------------
+config.THREADING_LAYER = 'tbb'
 
 def vector_space_generator(filtered_nodes, numNodes, cut_sol):
     """
@@ -72,8 +73,6 @@ def get_latencies(source, adjList, numNodes, job_l):
         if curr_lat > latencies[u]:
             continue
         for v, weight in adjList[u]:
-            if curr_lat + weight > job_l:
-                continue
             if latencies[v] > curr_lat + weight:
                 latencies[v] = curr_lat + weight
                 heapq.heappush(heap, (latencies[v], v))
@@ -123,12 +122,8 @@ def preselect_nodes(available, N_R, N_B, N_L, jr_job, jb_job, l_job, cut_comb_no
         single_R = N_R[i]
         single_B = N_B[i]
         single_L = N_L[i]
-
-        if single_R >= jr_job and single_B >= jb_job and single_L <= l_job:
-            candidate_nodes.add(i)
-            combs_found += 1
                         
-        for j in range(1, num_nodes):
+        for j in range(i, num_nodes):
 
             if combs_found == cut_comb_nodes:
                 break
@@ -176,33 +171,6 @@ def core_find_best_comb(
     melhores_OFs_locais = np.full(num_threads, INF, dtype=np.int64)
     melhores_combs_locais = np.full((num_threads, comb_size), VALOR_INVALIDO, dtype=np.int32)
     
-    # node_i = 156
-    # sin_R = N_R[node_i]
-    # sin_B = N_B[node_i]
-    # sin_L = N_L[node_i]
-    #
-    # f0 = sin_R - jr_job
-    # f1 = sin_B - jb_job
-    # f2 = l_job - sin_L
-    # OF = (f0 * f0) + (f1 * f1) - f2
-    #
-    # print(node_i, OF)
-    #
-    #
-    # node_i = 158
-    # node_j = 812
-    # sin_R = N_R[node_i] + N_R[node_j]
-    # sin_B = N_B[node_i] + N_B[node_j]
-    # sin_L = N_L[node_i] + N_L[node_j]
-    #
-    # f0 = sin_R - jr_job
-    # f1 = sin_B - jb_job
-    # f2 = l_job - sin_L
-    # OF = (f0 * f0) + (f1 * f1) - f2
-    
-    # print([node_i, node_j], OF)
-
-
     # Distribuição das iterações entre os threads
     numba.set_parallel_chunksize(10)
     for i in numba.prange(n_nodes):
@@ -263,8 +231,8 @@ def core_find_best_comb(
     return melhor_comb_global, melhor_OF_global
 
 # function declaration for thread using
-find_best_comb_par = numba.njit(assinatura, parallel=True)(core_find_best_comb)
-find_best_comb = numba.njit(assinatura, parallel=False)(core_find_best_comb)
+find_best_comb_par = numba.njit(assinatura, parallel=True, cache=True)(core_find_best_comb)
+find_best_comb = numba.njit(assinatura, parallel=False, cache=True)(core_find_best_comb)
 
 
 #-----------------------------------------------------------------------------------------------
@@ -344,7 +312,6 @@ def run_mna_jobs(file, numRunnings, r, jr, jb, jl, jo, N_R, N_B, adjList, numNod
             v_all_nodes.append([])
     
         v_times["total"] += time.perf_counter() - start_real
-        print(job)
 
     return v_all_OF, v_all_nodes, v_all_sol_feasible, v_num_combs, v_times
 
@@ -370,22 +337,6 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
             # start_r = time.perf_counter()
             jr, jb, jl, jo, V_R, V_B, V_Busy, V_Inactive, numNodes, edge_nodes, adjList = pr.read_input(files, source_dir)
             
-            # print("total:",len(edge_nodes))
-            
-            # origens = {}
-            # for i in edge_nodes:
-            #     origens[i] = 0
-            # for sas in jo:
-            #     origens[sas] += 1
-            #
-            #
-            # sabo = [(int(i), j) for i, j in origens.items() if j > 0]
-            #
-            # sabo.sort(key=lambda p: -p[1])
-            # print("used:", len(sabo))
-            # print(sabo)
-
-
             # Gives the jobs_file and the suffix of it and receives it's base name in return
             full_base = pr.full_base_name(files[3], files[-1])
 
@@ -414,7 +365,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
                             jr, jb, jl, jo, V_R, V_B,
                             V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt,
                             v_num_combs, v_times, numba_times)
-                print(nt, r)
+                # print(nt, r, threading_layer())
                 try:
                     email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
                 except:
