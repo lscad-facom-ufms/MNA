@@ -231,8 +231,8 @@ def core_find_best_comb(
     return melhor_comb_global, melhor_OF_global
 
 # function declaration for thread using
-find_best_comb_par = numba.njit(assinatura, parallel=True, cache=True)(core_find_best_comb)
-find_best_comb = numba.njit(assinatura, parallel=False, cache=True)(core_find_best_comb)
+find_best_comb_par = numba.njit(assinatura, parallel=True, fastmath=True, cache=True)(core_find_best_comb)
+find_best_comb = numba.njit(assinatura, parallel=False, fastmath=True, cache=True)(core_find_best_comb)
 
 
 #-----------------------------------------------------------------------------------------------
@@ -329,7 +329,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
     os.makedirs(target_dir, exist_ok=True)
 
     for files in pr.get_file_paths(source_dir):
-        for nt in [4][:1]:
+        for nt in [1,2,4,6,8,12,16][:1]:
             
             numba.set_num_threads(nt)
             # print(files)
@@ -471,7 +471,7 @@ if __name__ == "__main__":
     # Set the directory path where the .json files are located
 
     # Number of runnings of a given configuration
-    numRunnings = 2
+    numRunnings = 11
 
     # Create the output folder if it doesn't exist; keep if it already exists
     if not os.path.exists(target_dir):

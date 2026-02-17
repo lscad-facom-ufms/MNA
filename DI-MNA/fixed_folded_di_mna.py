@@ -74,8 +74,6 @@ def get_latencies(source, adjList, numNodes, job_l):
         if curr_lat > latencies[u]:
             continue
         for v, weight in adjList[u]:
-            if curr_lat + weight > job_l:
-                continue
             if latencies[v] > curr_lat + weight:
                 latencies[v] = curr_lat + weight
                 heapq.heappush(heap, (latencies[v], v))
@@ -367,7 +365,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
     os.makedirs(target_dir, exist_ok=True)
 
     for files in pr.get_file_paths(source_dir):
-        for nt in [4][:1]:
+        for nt in [1,2,4,6,8,12,16]:
             
             numba.set_num_threads(nt)
             # print(files)
@@ -404,7 +402,7 @@ def run_mna_iot_batch(source_dir, target_dir, numRunnings):
                             jr, jb, jl, jo, V_R, V_B,
                             V_Busy, V_Inactive, v_all_OF, v_all_nodes, v_all_sol_feasible, times_execs, nt,
                             v_num_combs, v_times, numba_times)
-                print(nt, r, threading_layer())
+                # print(nt, r, threading_layer())
                 try:
                     email_sender.send_result(file_path, cut_sol, cut_comb_nodes, min_comb_threads)
                 except:
@@ -510,7 +508,7 @@ if __name__ == "__main__":
     # Set the directory path where the .json files are located
 
     # Number of runnings of a given configuration
-    numRunnings = 2
+    numRunnings = 11
 
     # Create the output folder if it doesn't exist; keep if it already exists
     if not os.path.exists(target_dir):
