@@ -123,7 +123,7 @@ def preselect_nodes(available, N_R, N_B, N_L, jr_job, jb_job, l_job, cut_comb_no
         single_B = N_B[i]
         single_L = N_L[i]
                         
-        for j in range(i, num_nodes):
+        for j in range(i+1, num_nodes):
 
             if combs_found == cut_comb_nodes:
                 break
