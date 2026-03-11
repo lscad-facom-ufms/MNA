@@ -1,4 +1,5 @@
-#venv
+venv
+.venv
 bin
 lib
 lib64
@@ -7,3 +8,6 @@ share
 include
 
 __pycache__
+
+cpp/build
+cpp/vcpkg_installed
