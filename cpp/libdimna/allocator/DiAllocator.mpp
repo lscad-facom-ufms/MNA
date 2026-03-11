@@ -14,6 +14,7 @@ import mna.model.job;
 import dimna.model.solution;
 
 import dimna.policy.searcher.fixed_searcher;
+import dimna.policy.searcher.openmp_fixed_searcher;
 
 namespace mna::di {
 
@@ -195,5 +196,5 @@ DiAllocator<SearchPolicy>::get_latencies(int origin, std::vector<int32_t>& laten
 }
 
 export template<int CutSol> using FixedDiAllocator = DiAllocator<policy::FixedSearcher<CutSol>>;
-
+export template<int CutSol> using OpenMPFixedAllocator = DiAllocator<policy::OpenMPFixedSearcher<CutSol>>;
 } // dimna namespace
