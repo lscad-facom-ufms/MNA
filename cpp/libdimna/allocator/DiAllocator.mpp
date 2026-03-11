@@ -1,0 +1,199 @@
+module;
+#include <cstdint>
+#include <vector>
+#include <memory>
+#include <queue>
+#include <set>
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <iostream>
+export module dimna.allocator.di_allocator;
+import mna.model.iot_network;
+import mna.model.job;
+import dimna.model.solution;
+
+import dimna.policy.searcher.fixed_searcher;
+
+namespace mna::di {
+
+constexpr int64_t INF64 = 1LL << 40;
+constexpr int INF32 = 1 << 30;
+constexpr int t_c = 1;
+constexpr int INVALID_NODE = -1;
+
+export template <typename SearchPolicy>
+class DiAllocator{
+public:
+  DiAllocator(std::shared_ptr<IoTNetwork> network, int cut_sol, int cut_comb_nodes)
+  :network(network), cut_sol(cut_sol), cut_comb_nodes(cut_comb_nodes){}
+  DiAllocator() = default;
+
+  std::vector<Solution> run_mna_jobs(JobVector& jobs);
+//private:
+  std::shared_ptr<IoTNetwork> network;  
+  int cut_sol;
+  int cut_comb_nodes;
+
+  void get_latencies(int origin, std::vector<int32_t>& latencies);
+  std::vector<int> preselect_nodes(Job& job, std::vector<int32_t>& latencies);
+
+  SearchPolicy sp;
+
+  void reset_nodes(){
+    auto& nodes = network->vertexes();
+    for (int i = 0; i < network->vertex_count(); ++i){
+      nodes[i].busy = 0;
+    }
+  }
+};
+
+template <typename SearchPolicy>
+std::vector<Solution>
+DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
+  
+  int num_nodes = network->vertex_count();
+  std::vector<int32_t> latencies(num_nodes);
+
+  int num_jobs = jobs.size();
+  std::vector<Solution> solutions;
+  solutions.reserve(num_jobs);
+
+  auto& nodes = network->vertexes();
+
+  for (auto& job : jobs){
+    auto origin = job.origin;
+    get_latencies(origin, latencies);
+    
+    auto filtered_nodes = preselect_nodes(job, latencies);
+
+    Solution solution = sp.find_best_comb(network, job, filtered_nodes, latencies);
+    
+    if (solution.of < INF64){
+
+      // Mark valid nodes as busy and ignores placeholders values
+      for (int i = solution.nodes.size() - 1; i >= 0; --i){
+        
+        if (solution.nodes[i] < 0){
+          solution.nodes.pop_back();
+        }
+        else{
+          int n = solution.nodes[i];
+          nodes[n].busy = 1;
+        }
+      }
+      
+      solutions.push_back(solution);
+    }
+    else{
+    // Sets OF to zero if no valid combination was found
+      solutions.push_back({0, std::vector<int>()});
+    }
+    
+  }
+  return solutions;
+}
+
+template <typename SearchPolicy>
+std::vector<int>
+DiAllocator<SearchPolicy>::preselect_nodes(mna::Job& job, std::vector<int32_t>& latencies){
+
+  std::set<int> valid_nodes;
+  int num_nodes = network->vertex_count();
+  int combs_found{};
+
+  auto& nodes = network->vertexes();
+
+  auto jr_job = job.resource;
+  auto jb_job = job.bandwidth;
+  auto l_job = job.latency - t_c;
+
+  for (int i = 0; i < num_nodes && combs_found < cut_comb_nodes; ++i){
+    if (static_cast<bool>(nodes[i].busy))
+      continue;
+    
+    auto single_R = nodes[i].resource;
+    auto single_B = nodes[i].bandwidth;
+    auto single_L = latencies[i];
+    
+    if (single_R >= jr_job && single_B >= jb_job && single_L <= l_job){
+        valid_nodes.insert(i);
+        ++combs_found;
+    }
+  }
+  // Looking for valid node combinations
+  for (int i = 0; i < num_nodes && combs_found < cut_comb_nodes; ++i){
+
+    if (static_cast<bool>(nodes[i].busy))
+      continue;
+
+    auto single_R = nodes[i].resource;
+    auto single_B = nodes[i].bandwidth;
+    auto single_L = latencies[i];
+
+    for (int j = i + 1; j < num_nodes && combs_found < cut_comb_nodes; ++j){
+
+      if (static_cast<bool>(nodes[j].busy))
+        continue;
+      
+      auto total_R = single_R + nodes[j].resource;
+      auto total_B = single_B + nodes[j].bandwidth;
+      auto max_L = std::max(single_L, latencies[j]);
+        
+      if (total_R >= jr_job && total_B >= jb_job && max_L <= l_job){
+    
+        valid_nodes.insert(i);
+        valid_nodes.insert(j);
+        ++combs_found;
+      }
+    }
+  }
+  return std::vector<int>(valid_nodes.begin(), valid_nodes.end());
+}
+
+/* Sets latencies to hold the minimum latency path 
+ * from the origin node to all the other nodes.
+*/
+template <typename SearchPolicy>
+void
+DiAllocator<SearchPolicy>::get_latencies(int origin, std::vector<int32_t>& latencies){
+
+  struct nodePair{
+    int32_t latency;
+    int32_t node;
+  };
+
+  auto cmp = [](nodePair a, nodePair b){return a.latency > b.latency;};
+  std::priority_queue<nodePair, std::vector<nodePair>, decltype(cmp)> heap(cmp);
+
+  // Resets the latencies vector
+  std::fill(latencies.begin(), latencies.end(), INF32);
+  
+  // Inclusion of origin node
+  latencies[origin] = 0;
+
+  heap.push(nodePair{0, origin});
+  
+  while (!heap.empty()) {
+    auto [curr_lat, node] = heap.top();
+    heap.pop();
+    
+    if (curr_lat > latencies[node])
+      continue;
+    
+    // Getting all adjacent nodes
+    const auto& edges = network->get_vertex_edges(node);
+
+    for (auto [target, weight] : edges){
+      // Adds node back into the heap if the path is cheaper or includes it for the first time
+      if (latencies[target] > curr_lat + weight){
+        latencies[target] = curr_lat + weight;
+        heap.push(nodePair{latencies[target], target});
+      }
+    } 
+  }
+}
+
+export template<int CutSol> using FixedDiAllocator = DiAllocator<policy::FixedSearcher<CutSol>>;
+
+} // dimna namespace

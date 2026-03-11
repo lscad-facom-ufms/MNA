@@ -1,0 +1,19 @@
+export module mna.model.iot_network;
+import graphs.model.graph; 
+namespace mna {
+
+struct IoTNode{
+  int resource;
+  int bandwidth;
+  int busy;
+  int inactive;
+};
+
+struct IoTEdge{
+  int target;
+  int latency;
+};
+
+export using IoTNetwork = graphs::Graph<graphs::VertexVector<IoTNode>, graphs::EdgeAdjacencyList<IoTEdge>>; 
+
+} // namespace mna

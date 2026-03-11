@@ -1,0 +1,15 @@
+module;
+#include <vector>
+export module mna.model.job;
+
+namespace mna {
+
+export struct Job{
+  int resource;
+  int bandwidth;
+  int latency;
+  int origin;
+};
+
+export using JobVector = std::vector<Job>; 
+}

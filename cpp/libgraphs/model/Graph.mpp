@@ -1,0 +1,136 @@
+module;
+#include <vector>
+export module graphs.model.graph;
+
+namespace graphs {
+
+export template <typename V>
+class VertexVector{
+
+  std::vector<V> _vertexes;
+  int _total_vertexes{};
+
+public:
+  void set_total_vertexes(int v){
+    _total_vertexes = v;
+    _vertexes.reserve(v);
+  }
+  using vertex_type = V;
+
+  void add_vertex(V vertex){
+    _vertexes.push_back(vertex);
+  }
+
+  int vertex_count(){
+    return _vertexes.size();
+  }
+  const V& operator[](int i) const{
+    return _vertexes[i];
+  }
+
+  V& operator[](int i){
+    return _vertexes[i];
+  }
+
+};
+
+export template <typename E>
+class EdgeAdjacencyList{
+
+  std::vector<std::vector<E>> _edges;
+  int _total_vertexes{};
+  int _edge_count{};
+
+public:
+  using edge_type = E;
+  
+  void set_total_vertexes(int v){
+    _total_vertexes = v;
+    _edges.resize(v);
+  }
+
+  void add_edge(E edge, int source){
+    this->_edges.at(source).push_back(edge);
+    ++_edge_count;
+  }
+
+  int edge_count(){
+    return _edge_count;
+  }
+
+  const std::vector<E>& get_vertex_edges(int v) const{
+    return _edges[v];
+  }
+
+
+};
+
+export template <typename VC, typename EC>
+class Graph{
+
+  VC _vertexes;
+  EC _edges;
+
+  void set_total_vertexes(int v){
+    _vertexes.set_total_vertexes(v);
+    _edges.set_total_vertexes(v);
+  }
+
+public:
+  using vertex_type = VC::vertex_type;
+  using edge_type = EC::edge_type;
+  
+  Graph(int total_vertexes){
+    this->set_total_vertexes(total_vertexes);
+  }
+
+  void add_vertex(vertex_type vertex){
+    this->_vertexes.add_vertex(vertex);
+  };
+  void add_edge(edge_type edge, int source){
+    this->_edges.add_edge(edge, source);
+  };
+
+  auto vertex_count(){
+    return this->_vertexes.vertex_count();
+  }
+
+  auto edge_count(){
+    return this->_edges.edge_count();
+  }
+
+  const auto& get_vertex_edges(int v) const{
+    return this->_edges.get_vertex_edges(v);
+  }
+
+  const VC& vertexes() const{
+    return _vertexes;
+  }
+
+  VC& vertexes(){
+    return _vertexes;
+  }
+};
+
+
+} // namespace graphs
+
+class Vertex{
+  public:
+  int value;
+};
+
+
+class Edge{
+  int _dest;
+  int _weight;
+
+public:
+
+  Edge(int dest, int weight):_dest(dest), _weight(weight){}
+  int dest(){return _dest;}
+  int weight(){return _weight;}
+};
+
+
+

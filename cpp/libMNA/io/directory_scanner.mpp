@@ -1,0 +1,116 @@
+module;
+#include <filesystem>
+#include <vector>
+#include <string>
+#include <regex>
+#include <unordered_map>
+#include <iostream>
+#include <stdexcept>
+#include <format>
+export module mna.io.directory_scanner;
+
+namespace fs = std::filesystem;
+
+namespace mna {
+
+export struct InstanceStructure{
+  fs::path nodes{};
+  fs::path manifest{};
+  std::vector<fs::path> jobs{};
+  std::vector<fs::path> edges{};
+};
+
+export using InstancesMap = std::unordered_map<std::string, InstanceStructure>;
+
+export void
+print_instances_files(std::unordered_map<std::string, InstanceStructure> instances){
+  for (auto& [key, value] : instances){
+    std::cout << key << "\n";
+    std::cout << value.manifest << "\n";
+    std::cout << value.nodes << "\n----------\n";
+    for (auto& p : value.jobs){
+      std::cout << p << "\n";
+    }
+    std::cout << "------------\n";
+
+    for (auto& p : value.edges){
+      std::cout << p << "\n";
+    }
+  }
+}
+
+
+export InstancesMap
+scan_input_dir(std::string input_path){
+
+  InstancesMap instances;
+
+  fs::path input_dir(input_path);
+
+  if(!fs::directory_entry(input_path).is_directory()){
+    throw std::runtime_error(std::format("Error: {} is not a directory!", input_path));
+  }
+
+  const std::regex base_pattern(R"(\d+nds)");
+  const std::regex nodes_pattern(R"(\w+_nodes)");
+  const std::regex manifest_pattern(R"(\w+_manifest)");
+  const std::regex edges_pattern(R"(\w+_edges_part\d+)");
+  const std::regex jobs_pattern(R"(\w+_\d+jobs_\w+)");
+  const std::regex info_pattern(R"(info)");
+
+  std::smatch matches;
+
+  for (auto& file : fs::directory_iterator(input_dir)){
+
+    std::string file_name = file.path().string();
+
+    if (!file_name.ends_with(".parquet"))
+      continue;
+
+    if (!std::regex_search(file_name, matches, base_pattern))
+      continue;
+
+    std::string base_name = matches.str();
+
+    if(std::regex_search(file_name, nodes_pattern))
+      instances[base_name].nodes = file.path();
+
+    else if(std::regex_search(file_name, manifest_pattern))
+      instances[base_name].manifest = file.path();
+    
+    else if(std::regex_search(file_name, edges_pattern))
+      instances[base_name].edges.push_back(file.path());
+    
+    else if(std::regex_search(file_name, jobs_pattern)){
+      if(!std::regex_search(file_name, info_pattern))
+        instances[base_name].jobs.push_back(file.path());
+    }
+  }
+  for (auto& [key, inst] : instances){
+    if(inst.nodes.string().empty())
+      throw std::runtime_error(std::format("Missing Nodes file for {}", key));
+
+    if(inst.manifest.string().empty())
+      throw std::runtime_error(std::format("Missing Manifest file for {}", key));
+
+    if(inst.edges.empty())
+      throw std::runtime_error(std::format("Missing Edges file(s) for {}", key));
+
+    if(inst.jobs.empty())
+      throw std::runtime_error(std::format("Missing Jobs file(s) for {}", key));
+  }
+  return instances;
+}
+} // mna namespace
+
+
+
+
+
+
+
+
+
+
+
+
