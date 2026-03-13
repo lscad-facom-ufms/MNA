@@ -11,6 +11,7 @@ module;
 export module dimna.io.output_writer;
 import mna.model.job;
 import dimna.model.solution;
+import dimna.model.times;
 
 namespace mna::di {
 
@@ -39,23 +40,23 @@ public:
   }
   
   void reset_times(){
-    runtimes.clear();
+    info_times.clear();
   }
-  void write_output(std::vector<Solution>&, JobVector&, double time, InfoPayload);
-  void write_final_output(std::vector<Solution>&, JobVector&, double time, InfoPayload);
+  void write_output(std::vector<Solution>&, JobVector&, Times times, InfoPayload);
+  void write_final_output(std::vector<Solution>&, JobVector&, Times times, InfoPayload);
   
 private:
   fs::path output_dir;
-  std::vector<double> runtimes;
+  std::vector<Times> info_times;
   
   std::string format_vector(const std::vector<int>&);
 };
 
 void
-OutputWriter::write_output(std::vector<Solution>& sols, JobVector& jobs, double time, InfoPayload info){
+OutputWriter::write_output(std::vector<Solution>& sols, JobVector& jobs, Times times, InfoPayload info){
 
-  int r_num = runtimes.size();
-  runtimes.push_back(time);
+  int r_num = info_times.size();
+  info_times.push_back(times);
 
   std::string file_name = std::string("cs") + std::to_string(info.cut_sol) + std::string("_");
 
@@ -88,16 +89,19 @@ OutputWriter::write_output(std::vector<Solution>& sols, JobVector& jobs, double 
   out_file << table << "\n\n";
 
   out_file << "Total OF: " << total_of << "\n";
-  out_file << "Runtime: " << time << "\n";
+  out_file << "Runtime: " << times.total << "\n\n";
+  out_file << "latencies: " << times.latencies << " - " << (times.latencies / times.total) * 100 << "%\n";
+  out_file << "filter  : " << times.filter << " - " << (times.filter / times.total) * 100 << "%\n";
+  out_file << "search  : " << times.search << " - " << (times.search / times.total) * 100 << "%\n";
 
   out_file.close();
 }
 
 void
-OutputWriter::write_final_output(std::vector<Solution>& sols, JobVector& jobs, double time, InfoPayload info){
+OutputWriter::write_final_output(std::vector<Solution>& sols, JobVector& jobs, Times times, InfoPayload info){
 
-  int r_num = runtimes.size();
-  runtimes.push_back(time);
+  int r_num = info_times.size();
+  info_times.push_back(times);
 
   std::string file_name = std::string("cs") + std::to_string(info.cut_sol) + std::string("_");
 
@@ -132,26 +136,51 @@ OutputWriter::write_final_output(std::vector<Solution>& sols, JobVector& jobs, d
   out_file << "Total OF: " << total_of << "\n";
   out_file << "Runtime: " << time << "\n";
 
+  out_file << "latencies: " << times.latencies << " - " << (times.latencies / times.total) * 100 << "%\n";
+  out_file << "filter  : " << times.filter << " - " << (times.filter / times.total) * 100 << "%\n";
+  out_file << "search  : " << times.search << " - " << (times.search / times.total) * 100 << "%\n";
+
   out_file << "--------------Times execs----------------\n";
 
-  for (int i = 0; i < runtimes.size(); ++i)
-    out_file << "    "<< i << ": " << runtimes[i] << "\n";
+  for (int i = 0; i < info_times.size(); ++i)
+    out_file << "    "<< i << ": " << info_times[i].total << "\n";
 
-  auto& v = this->runtimes;
+  auto& v = this->info_times;
 
-  double mean = v.empty() ? 0 : std::accumulate(v.begin(), v.end(), 0.0)/ v.size();
-  double sd = v.size() < 2 ? 0 : std::transform_reduce(v.begin(), v.end(), 0.0, std::plus<>(),
-                                  [mean](double x) { return (x - mean) * (x - mean); });
+  // double mean = v.empty() ? 0 : std::accumulate(v.begin(), v.end(), 0.0)/ v.size();
+  // double sd = v.size() < 2 ? 0 : std::transform_reduce(v.begin(), v.end(), 0.0, std::plus<>(),
+  //                                 [mean](double x) { return (x - mean) * (x - mean); });
   
+  double mean = v.empty() ? 0.0 : 
+       std::accumulate(v.begin(), v.end(), 0.0, 
+           [](double sum, const auto& obj) { 
+               return sum + obj.total; 
+           }) / (v.size());
+
+  double sd = v.size() < 2 ? 0.0 : 
+       std::transform_reduce(v.begin(), v.end(), 0.0, std::plus<>(),
+             [mean](const auto& obj) { 
+                 return (obj.total - mean) * (obj.total - mean); 
+           });
   out_file << " mean: " << mean << "\n";
   out_file << "   sd: " << sd << "\n\n";
   
   out_file << "First ignored:\n\n";
 
-  mean = v.size() - 1 == 0? 0 : std::accumulate(v.begin() +1, v.end(), 0.0)/ (v.size() - 1);
-  sd = v.size() - 1 < 2 ? 0 : std::transform_reduce(v.begin() +1, v.end(), 0.0, std::plus<>(),
-                                  [mean](double x) { return (x - mean) * (x - mean); });
-  
+  // mean = v.size() - 1 == 0? 0 : std::accumulate(v.begin() +1, v.end(), 0.0)/ (v.size() - 1);
+  // sd = v.size() - 1 < 2 ? 0 : std::transform_reduce(v.begin() +1, v.end(), 0.0, std::plus<>(),
+  //                                 [mean](double x) { return (x - mean) * (x - mean); });
+  mean = v.size() - 1 == 0 ? 0.0 : 
+       std::accumulate(v.begin() + 1, v.end(), 0.0, 
+           [](double sum, const auto& obj) { 
+               return sum + obj.total; 
+           }) / (v.size() - 1);
+
+  sd = v.size() - 1 < 2 ? 0.0 : 
+       std::transform_reduce(v.begin() + 1, v.end(), 0.0, std::plus<>(),
+             [mean](const auto& obj) { 
+                 return (obj.total - mean) * (obj.total - mean); 
+           });
   out_file << " mean: " << mean << "\n";
   out_file << "   sd: " << sd << "\n\n";
   out_file << "----------------------\n";

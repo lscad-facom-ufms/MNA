@@ -58,16 +58,18 @@ DiRunner<DiAllocator>::run_mna_jobs_batch(JobVector& jobs){
     
     auto start = std::chrono::steady_clock::now();
     
-    auto solutions = allocator.run_mna_jobs(jobs);
+    auto [solutions, times] = allocator.run_mna_jobs(jobs);
 
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> diff_in_seconds = end - start;
     double exec_time = diff_in_seconds.count();
+    
+    times.total = exec_time;
 
     if (numRunnings - 1 == r)
-      ow.write_final_output(solutions, jobs, exec_time, info);
+      ow.write_final_output(solutions, jobs, times, info);
     else
-        ow.write_output(solutions, jobs, exec_time, info);
+        ow.write_output(solutions, jobs, times, info);
     
     reset_nodes();
   }

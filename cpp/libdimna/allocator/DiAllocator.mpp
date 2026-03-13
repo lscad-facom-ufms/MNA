@@ -8,10 +8,13 @@ module;
 #include <iterator>
 #include <utility>
 #include <iostream>
+#include <chrono>
 export module dimna.allocator.di_allocator;
+
 import mna.model.iot_network;
 import mna.model.job;
 import dimna.model.solution;
+import dimna.model.times;
 
 import dimna.policy.searcher.fixed_searcher;
 import dimna.policy.searcher.openmp_fixed_searcher;
@@ -23,6 +26,11 @@ constexpr int INF32 = 1 << 30;
 constexpr int t_c = 1;
 constexpr int INVALID_NODE = -1;
 
+export struct Result{
+  std::vector<Solution> solutions;
+  Times times;
+};
+
 export template <typename SearchPolicy>
 class DiAllocator{
 public:
@@ -30,7 +38,7 @@ public:
   :network(network), cut_sol(cut_sol), cut_comb_nodes(cut_comb_nodes){}
   DiAllocator() = default;
 
-  std::vector<Solution> run_mna_jobs(JobVector& jobs);
+  Result run_mna_jobs(JobVector& jobs);
 //private:
   std::shared_ptr<IoTNetwork> network;  
   int cut_sol;
@@ -50,7 +58,7 @@ public:
 };
 
 template <typename SearchPolicy>
-std::vector<Solution>
+Result
 DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
   
   int num_nodes = network->vertex_count();
@@ -62,14 +70,34 @@ DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
 
   auto& nodes = network->vertexes();
 
+  Times times{};  
+
   for (auto& job : jobs){
     auto origin = job.origin;
+    
+    auto start = std::chrono::steady_clock::now();
+
     get_latencies(origin, latencies);
     
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff_in_seconds = end - start;
+    times.latencies += diff_in_seconds.count();
+
+    start = std::chrono::steady_clock::now();
+
     auto filtered_nodes = preselect_nodes(job, latencies);
 
+    end = std::chrono::steady_clock::now();
+    diff_in_seconds = end - start;
+    times.filter += diff_in_seconds.count();
+
+    start = std::chrono::steady_clock::now();
     Solution solution = sp.find_best_comb(network, job, filtered_nodes, latencies);
     
+    end = std::chrono::steady_clock::now();
+    diff_in_seconds = end - start;
+    times.search += diff_in_seconds.count();
+
     if (solution.of < INF64){
 
       // Mark valid nodes as busy and ignores placeholders values
@@ -92,7 +120,7 @@ DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
     }
     
   }
-  return solutions;
+  return Result{solutions, times};
 }
 
 template <typename SearchPolicy>

@@ -1,0 +1,10 @@
+export module dimna.model.times;
+
+namespace mna::di{
+export struct Times{
+  double total{};
+  double latencies{};
+  double filter{};
+  double search{};
+};
+}
