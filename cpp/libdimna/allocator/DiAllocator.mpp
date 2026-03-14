@@ -16,6 +16,8 @@ import mna.model.job;
 import dimna.model.solution;
 import dimna.model.times;
 
+import dimna.policy.filter.fixed_filter;
+
 import dimna.policy.searcher.fixed_searcher;
 import dimna.policy.searcher.openmp_fixed_searcher;
 
@@ -31,7 +33,7 @@ export struct Result{
   Times times;
 };
 
-export template <typename SearchPolicy>
+export template <typename FilterPolicy, typename SearchPolicy>
 class DiAllocator{
 public:
   DiAllocator(std::shared_ptr<IoTNetwork> network, int cut_sol, int cut_comb_nodes)
@@ -47,6 +49,7 @@ public:
   void get_latencies(int origin, std::vector<int32_t>& latencies);
   std::vector<int> preselect_nodes(Job& job, std::vector<int32_t>& latencies);
 
+  FilterPolicy fp;
   SearchPolicy sp;
 
   void reset_nodes(){
@@ -57,9 +60,9 @@ public:
   }
 };
 
-template <typename SearchPolicy>
+template <typename FilterPolicy, typename SearchPolicy>
 Result
-DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
+DiAllocator<FilterPolicy, SearchPolicy>::run_mna_jobs(JobVector& jobs){
   
   int num_nodes = network->vertex_count();
   std::vector<int32_t> latencies(num_nodes);
@@ -71,12 +74,13 @@ DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
   auto& nodes = network->vertexes();
 
   Times times{};  
-
+// int t = 0;
   for (auto& job : jobs){
     auto origin = job.origin;
     
     auto start = std::chrono::steady_clock::now();
-
+    
+    // Getting the latencies from the origin node to all of the others on the network
     get_latencies(origin, latencies);
     
     auto end = std::chrono::steady_clock::now();
@@ -84,14 +88,25 @@ DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
     times.latencies += diff_in_seconds.count();
 
     start = std::chrono::steady_clock::now();
+    
+    // Filtering nodes based on wheter the job fits in a combination that includes it
+    auto filtered_nodes = fp.preselect_nodes(network, job, latencies, cut_comb_nodes);
 
-    auto filtered_nodes = preselect_nodes(job, latencies);
+    // if(true){
+    //   std::cout << t++ << "\n";
+    //   std::cout << "size:" << jobs.size() << "\n";
+    //   for(auto f : filtered_nodes)
+    //       std::cout << f << ",";
+    //   std::cout << "\n\n";
+    // }
 
     end = std::chrono::steady_clock::now();
     diff_in_seconds = end - start;
     times.filter += diff_in_seconds.count();
 
     start = std::chrono::steady_clock::now();
+
+    // Testing all combinations of nodes that passed the filter
     Solution solution = sp.find_best_comb(network, job, filtered_nodes, latencies);
     
     end = std::chrono::steady_clock::now();
@@ -100,7 +115,7 @@ DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
 
     if (solution.of < INF64){
 
-      // Mark valid nodes as busy and ignores placeholders values
+      // Mark valid nodes as busy, removing placeholder node indexes
       for (int i = solution.nodes.size() - 1; i >= 0; --i){
         
         if (solution.nodes[i] < 0){
@@ -123,69 +138,13 @@ DiAllocator<SearchPolicy>::run_mna_jobs(JobVector& jobs){
   return Result{solutions, times};
 }
 
-template <typename SearchPolicy>
-std::vector<int>
-DiAllocator<SearchPolicy>::preselect_nodes(mna::Job& job, std::vector<int32_t>& latencies){
-
-  std::set<int> valid_nodes;
-  int num_nodes = network->vertex_count();
-  int combs_found{};
-
-  auto& nodes = network->vertexes();
-
-  auto jr_job = job.resource;
-  auto jb_job = job.bandwidth;
-  auto l_job = job.latency - t_c;
-
-  for (int i = 0; i < num_nodes && combs_found < cut_comb_nodes; ++i){
-    if (static_cast<bool>(nodes[i].busy))
-      continue;
-    
-    auto single_R = nodes[i].resource;
-    auto single_B = nodes[i].bandwidth;
-    auto single_L = latencies[i];
-    
-    if (single_R >= jr_job && single_B >= jb_job && single_L <= l_job){
-        valid_nodes.insert(i);
-        ++combs_found;
-    }
-  }
-  // Looking for valid node combinations
-  for (int i = 0; i < num_nodes && combs_found < cut_comb_nodes; ++i){
-
-    if (static_cast<bool>(nodes[i].busy))
-      continue;
-
-    auto single_R = nodes[i].resource;
-    auto single_B = nodes[i].bandwidth;
-    auto single_L = latencies[i];
-
-    for (int j = i + 1; j < num_nodes && combs_found < cut_comb_nodes; ++j){
-
-      if (static_cast<bool>(nodes[j].busy))
-        continue;
-      
-      auto total_R = single_R + nodes[j].resource;
-      auto total_B = single_B + nodes[j].bandwidth;
-      auto max_L = std::max(single_L, latencies[j]);
-        
-      if (total_R >= jr_job && total_B >= jb_job && max_L <= l_job){
-    
-        valid_nodes.insert(i);
-        valid_nodes.insert(j);
-        ++combs_found;
-      }
-    }
-  }
-  return std::vector<int>(valid_nodes.begin(), valid_nodes.end());
-}
 
 /* Sets latencies to hold the minimum latency path 
  * from the origin node to all the other nodes.
 */
-template <typename SearchPolicy>
+template <typename FilterPolicy, typename SearchPolicy>
 void
-DiAllocator<SearchPolicy>::get_latencies(int origin, std::vector<int32_t>& latencies){
+DiAllocator<FilterPolicy, SearchPolicy>::get_latencies(int origin, std::vector<int32_t>& latencies){
 
   struct nodePair{
     int32_t latency;
@@ -223,6 +182,6 @@ DiAllocator<SearchPolicy>::get_latencies(int origin, std::vector<int32_t>& laten
   }
 }
 
-export template<int CutSol> using FixedDiAllocator = DiAllocator<policy::FixedSearcher<CutSol>>;
-export template<int CutSol> using OpenMPFixedAllocator = DiAllocator<policy::OpenMPFixedSearcher<CutSol>>;
+export template<int CutSol> using FixedDiAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::FixedSearcher<CutSol>>;
+export template<int CutSol> using OpenMPFixedAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::OpenMPFixedSearcher<CutSol>>;
 } // dimna namespace

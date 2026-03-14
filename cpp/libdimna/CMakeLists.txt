@@ -13,6 +13,7 @@ target_sources(libdimna
   model/Solution.mpp
   model/Options.mpp
   model/Times.mpp
+  policy/filter/FixedFilter.mpp
   policy/searcher/FixedSearcher.mpp
   policy/searcher/OpenMPFixedSearcher.mpp
 )
