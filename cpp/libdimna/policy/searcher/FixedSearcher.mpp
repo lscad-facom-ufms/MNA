@@ -1,4 +1,6 @@
 module;
+#include <array>
+#include <iterator>
 #include <vector>
 #include <cstdint>
 #include <memory>
@@ -18,6 +20,45 @@ constexpr int INVALID_NODE = -1;
 */
 export template <int CutSol> class FixedSearcher;
 
+template <>
+class FixedSearcher<1>{
+public:
+  Solution 
+  find_best_comb(std::shared_ptr<IoTNetwork> network, mna::Job& job, std::vector<int>& valid_nodes, std::vector<int32_t>& latencies){
+    
+    int num_nodes = valid_nodes.size();
+    std::vector<int> best_comb(1, INVALID_NODE);
+    int64_t best_OF = INF64;
+
+    const auto& nodes = network->vertexes();
+    
+    auto jr_job = job.resource;
+    auto jb_job = job.bandwidth;
+    auto l_job = job.latency - t_c;
+
+    for (auto it_i = valid_nodes.begin(); it_i != valid_nodes.end(); ++it_i){
+
+      int i = *it_i;
+      auto single_R = nodes[i].resource;
+      auto single_B = nodes[i].bandwidth;
+      auto single_L = latencies[i];
+      
+      if (single_R >= jr_job && single_B >= jb_job && single_L <= l_job){
+        int64_t f0 = single_R - jr_job;
+        int64_t f1 = single_B - jb_job;
+        int64_t f2 = l_job - single_L;
+
+        auto OF = (f0 * f0) + (f1 * f1) - f2;
+
+        if (OF < best_OF){
+          best_OF = OF;
+          best_comb[0] = i;
+        }
+      }
+    }
+    return Solution{best_OF, std::move(best_comb)};
+  }
+};
 template <>
 class FixedSearcher<2>{
 public:
@@ -71,6 +112,94 @@ public:
             best_OF = OF;
             best_comb[0] = i;
             best_comb[1] = j;
+          }
+        }
+      }
+    }
+    return Solution{best_OF, std::move(best_comb)};
+  }
+};
+template <>
+class FixedSearcher<3>{
+public:
+  Solution 
+  find_best_comb(std::shared_ptr<IoTNetwork> network, mna::Job& job, std::vector<int>& valid_nodes, std::vector<int32_t>& latencies){
+    
+    int num_nodes = valid_nodes.size();
+    std::vector<int> best_comb(3, INVALID_NODE);
+    int64_t best_OF = INF64;
+
+    const auto& nodes = network->vertexes();
+    
+    auto jr_job = job.resource;
+    auto jb_job = job.bandwidth;
+    auto l_job = job.latency - t_c;
+
+    std::array<decltype(jr_job), 3> partial_R;
+    std::array<decltype(jb_job), 3> partial_B;
+    std::array<decltype(l_job), 3> partial_L;
+
+    for (auto it_i = valid_nodes.begin(); it_i != valid_nodes.end(); ++it_i){
+
+      int i = *it_i;
+      partial_R[0] = nodes[i].resource;
+      partial_B[0] = nodes[i].bandwidth;
+      partial_L[0] = latencies[i];
+      
+      if (partial_R[0] >= jr_job && partial_B[0] >= jb_job && partial_L[0] <= l_job){
+        int64_t f0 = partial_R[0] - jr_job;
+        int64_t f1 = partial_B[0] - jb_job;
+        int64_t f2 = l_job - partial_L[0];
+
+        auto OF = (f0 * f0) + (f1 * f1) - f2;
+
+        if (OF < best_OF){
+          best_OF = OF;
+          best_comb[0] = i;
+          best_comb[1] = INVALID_NODE;
+          best_comb[2] = INVALID_NODE;
+        }
+      }
+      for (auto it_j = std::next(it_i); it_j != valid_nodes.end(); ++it_j){
+        int j = *it_j;
+        partial_R[1] = partial_R[0] + nodes[j].resource;
+        partial_B[1] = partial_B[0] + nodes[j].bandwidth;
+        partial_L[1] = partial_L[0] + latencies[j];
+        
+        if (partial_R[1] >= jr_job && partial_B[1] >= jb_job && partial_L[1] <= l_job){
+          int64_t f0 = partial_R[1] - jr_job;
+          int64_t f1 = partial_B[1] - jb_job;
+          int64_t f2 = l_job - partial_L[1];
+
+          auto OF = (f0 * f0) + (f1 * f1) - f2;
+
+          if (OF < best_OF){
+            best_OF = OF;
+            best_comb[0] = i;
+            best_comb[1] = j;
+            best_comb[2] = INVALID_NODE;
+          }
+        }
+
+        for (auto it_k = std::next(it_j); it_k != valid_nodes.end(); ++it_k){
+          int k = *it_k;
+          partial_R[2] = partial_R[1] + nodes[k].resource;
+          partial_B[2] = partial_B[1] + nodes[k].bandwidth;
+          partial_L[2] = partial_L[1] + latencies[k];
+          
+          if (partial_R[2] >= jr_job && partial_B[2] >= jb_job && partial_L[2] <= l_job){
+            int64_t f0 = partial_R[2] - jr_job;
+            int64_t f1 = partial_B[2] - jb_job;
+            int64_t f2 = l_job - partial_L[2];
+
+            auto OF = (f0 * f0) + (f1 * f1) - f2;
+
+            if (OF < best_OF){
+              best_OF = OF;
+              best_comb[0] = i;
+              best_comb[1] = j;
+              best_comb[2] = k;
+            }
           }
         }
       }
