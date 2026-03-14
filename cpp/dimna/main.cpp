@@ -18,6 +18,7 @@ import dimna.allocator.di_allocator;
 mna::di::Options setup_options(int argc, char* argv[]);
 std::shared_ptr<mna::IoTNetwork> setup_network(mna::InstanceStructure& instance, mna::ParquetReader& pr);
 mna::JobVector setup_jobs(std::filesystem::path& jobs_file, mna::ParquetReader& pr);
+void run(std::shared_ptr<mna::IoTNetwork> network, mna::JobVector& jobs, mna::di::Options di_options);
 
 int
 main (int argc, char *argv[]) {
@@ -34,17 +35,42 @@ main (int argc, char *argv[]) {
 
     auto network = setup_network(instance, pr);
 
-    mna::di::DiRunner<mna::di::FixedDiAllocator<CUT_SOL>> runner(network, di_options);
     // Looping through jobs configurantions (light and heavy)
     for (auto& jobs_file : instance.jobs){
       mna::JobVector jobs = setup_jobs(jobs_file, pr);
-
-      runner.run_mna_jobs_batch(jobs);
+      
+      run(network, jobs, di_options);
     }
   }
 
   return 0;
 }
+
+void 
+run(std::shared_ptr<mna::IoTNetwork> network, mna::JobVector& jobs, mna::di::Options di_options){
+ 
+  switch (di_options.cut_sol){
+    case 1:{
+      mna::di::DiRunner<mna::di::FixedDiAllocator<1>> runner(network, di_options);
+
+      runner.run_mna_jobs_batch(jobs);
+    }
+    break;
+    case 2:{
+      mna::di::DiRunner<mna::di::FixedDiAllocator<2>> runner(network, di_options);
+
+      runner.run_mna_jobs_batch(jobs);
+    }  
+    break;
+    case 3:{
+      mna::di::DiRunner<mna::di::FixedDiAllocator<3>> runner(network, di_options);
+
+      runner.run_mna_jobs_batch(jobs);
+    }
+      break;
+ } 
+}
+
 mna::di::Options
 setup_options(int argc, char* argv[]){
   
