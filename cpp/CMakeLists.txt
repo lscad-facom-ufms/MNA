@@ -30,6 +30,7 @@ add_subdirectory(libgraphs)
 add_subdirectory(libMNA)
 add_subdirectory(libdimna)
 add_subdirectory(dimna)
+add_subdirectory(canon_dimna)
 # add_subdirectory(openmp_fixed_dimna)
 
 # if (BUILD_TESTING)
