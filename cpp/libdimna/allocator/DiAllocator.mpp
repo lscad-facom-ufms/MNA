@@ -17,6 +17,7 @@ import dimna.model.solution;
 import dimna.model.times;
 
 import dimna.policy.filter.fixed_filter;
+import dimna.policy.filter.canon_fixed_filter;
 
 import dimna.policy.searcher.fixed_searcher;
 import dimna.policy.searcher.openmp_fixed_searcher;
@@ -183,5 +184,8 @@ DiAllocator<FilterPolicy, SearchPolicy>::get_latencies(int origin, std::vector<i
 }
 
 export template<int CutSol> using FixedDiAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::FixedSearcher<CutSol>>;
+
+export template<int CutSol> using CanonDiAllocator = DiAllocator<policy::CanonFixedFilter<CutSol>, policy::FixedSearcher<CutSol>>;
+
 export template<int CutSol> using OpenMPFixedAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::OpenMPFixedSearcher<CutSol>>;
 } // dimna namespace
