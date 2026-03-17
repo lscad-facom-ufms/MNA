@@ -76,6 +76,7 @@ public:
         free_nodes.push_back(i);
 
     int num_free = free_nodes.size();
+    num_free = std::min(num_free, cut_comb_nodes);
 
     for (int idx = 0; idx < num_free && combs_found < cut_comb_nodes; ++idx){
 
@@ -143,7 +144,7 @@ public:
         free_nodes.push_back(i);
 
     int num_free = free_nodes.size();
-
+    num_free = std::min(num_free, cut_comb_nodes);
     for (int idx_i = 0; idx_i < num_free && combs_found < cut_comb_nodes; ++idx_i){
       
       int i = free_nodes[idx_i];
@@ -203,9 +204,9 @@ public:
         partial_B[1] = partial_B[0] + nodes[j].bandwidth;
         max_L[1] = std::max(max_L[0], latencies[j]);
 
-        for (int idx_k = idx_j + 1; idx_k < num_nodes && combs_found < cut_comb_nodes; ++idx_k){
+        for (int idx_k = idx_j + 1; idx_k < num_free && combs_found < cut_comb_nodes; ++idx_k){
 
-          int k = free_nodes[k];
+          int k = free_nodes[idx_k];
           
           partial_R[2] = partial_R[1] + nodes[k].resource;
           partial_B[2] = partial_B[1] + nodes[k].bandwidth;
