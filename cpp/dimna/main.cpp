@@ -6,8 +6,10 @@
 import mna.io.cli_parser;
 import mna.io.directory_scanner;
 import mna.io.parquet_reader;
+import mna.io.json_reader;
 import mna.model.iot_network;
 import mna.model.job;
+
 import dimna.allocator.di_runner;
 import dimna.model.solution;
 import dimna.model.options;
@@ -19,6 +21,15 @@ mna::di::Options setup_options(int argc, char* argv[]);
 std::shared_ptr<mna::IoTNetwork> setup_network(mna::InstanceStructure& instance, mna::ParquetReader& pr);
 mna::JobVector setup_jobs(std::filesystem::path& jobs_file, mna::ParquetReader& pr);
 void run(std::shared_ptr<mna::IoTNetwork> network, mna::JobVector& jobs, mna::di::Options di_options);
+
+struct JsonNetwork{
+  std::shared_ptr<mna::IoTNetwork> network;
+  mna::JobVector jobs;
+};
+
+JsonNetwork
+json_network(std::filesystem::path instance_file, mna::JsonReader& jsonReader);
+
 
 int
 main (int argc, char *argv[]) {
@@ -41,6 +52,16 @@ main (int argc, char *argv[]) {
       
       run(network, jobs, di_options);
     }
+  }
+
+  mna::JsonReader jsonReader;
+
+  auto json_instances = mna::scan_for_json(di_options.input_dir);
+
+  for (auto& instance : json_instances){
+    auto [network, jobs] = json_network(instance, jsonReader);
+
+    run(network, jobs, di_options);
   }
 
   return 0;
@@ -89,6 +110,34 @@ setup_options(int argc, char* argv[]){
   int numRunnings = std::stoi(str_nR);
 
   return {config.input_folder, config.output_folder, cut_sol, cut_comb_nodes, numRunnings};
+}
+
+JsonNetwork
+json_network(std::filesystem::path instance_file, mna::JsonReader& jsonReader){
+
+  int total_vertexes = jsonReader.get_num_vertexes(instance_file);
+
+  auto network = std::make_shared<mna::IoTNetwork>(total_vertexes);
+  
+  using vertex_type = decltype(network)::element_type::vertex_type;
+  using edge_type = decltype(network)::element_type::edge_type;
+
+  auto add_edge = [&](int32_t source, int32_t target, int32_t latency){
+    network->add_edge(edge_type{target, latency}, source); 
+  };
+  auto add_vertex = [&](int64_t R, int64_t B, int64_t busy, int64_t inactive){
+    network->add_vertex(vertex_type{R, B, busy, inactive});
+  };
+  
+  mna::JobVector jobsV;
+
+  auto add_job = [&](int64_t jr, int64_t jb, int64_t jl, int64_t jo){
+    jobsV.push_back(mna::Job{jr, jb, jl, jo});
+  };
+
+  jsonReader.read_instance(instance_file, add_vertex, add_edge, add_job);
+
+  return {network, jobsV};
 }
 
 std::shared_ptr<mna::IoTNetwork>
