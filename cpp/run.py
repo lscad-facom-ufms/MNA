@@ -18,7 +18,7 @@ for input in inputs[2:3]:
 
             print(input, "cs:", a, "ccn:", b, "...")
 
-            out_path = base_out + input + "/" + a + "/"
+            out_path = base_out + input + "/cs" + a + "/"
             if not os.path.exists(out_path):
                 os.makedirs(out_path)
 
