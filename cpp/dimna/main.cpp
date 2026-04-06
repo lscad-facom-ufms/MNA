@@ -39,8 +39,6 @@ main (int argc, char *argv[]) {
   
   mna::ParquetReader pr;
 
-  constexpr int CUT_SOL = 2;
-  
   // Looping on different networks present at the input folder
   for (auto& [key, instance] : instances_map){
 
@@ -60,7 +58,6 @@ main (int argc, char *argv[]) {
 
   for (auto& instance : json_instances){
     auto [network, jobs] = json_network(instance, jsonReader);
-
     run(network, jobs, di_options);
   }
 
