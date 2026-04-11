@@ -1,0 +1,46 @@
+services:
+  mna-cpp-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    working_dir: /app/src
+
+    volumes:
+      - type: bind
+        source: .
+        target: /app/src
+
+      - type: bind
+        source: ../inputs/
+        target: /app/inputs
+      
+      - type: bind
+        source: ${HOST_OUTPUT_DIR}
+        target: /app/output
+
+      - type: volume
+        target: /app/out/build/docker-dev
+
+    command: >
+      /bin/bash -c "
+      echo '⚙️ Initializing...';
+      cmake --preset=docker-dev &&
+      cmake --build --preset=docker-dev &&
+      /app/out/build/docker-dev/dimna/di_mna
+      --in /app/${DATASET_INPUT}
+      --out /app/output/
+      --runs ${NUM_RUNS}
+      --cs ${PAR_ALFA}
+      --ccn ${PAR_BETA};
+      
+      echo '🔭 Watching for changes on /app/src...';
+      
+      while inotifywait -q -r -e modify,create,delete /app/src
+      --exclude 'nohup.out|output|run.py'; do
+        echo '🔄 Change detected! Recompiling...';
+        cmake --build --preset docker-dev && 
+        /app/out/build/docker-dev/dimna/di_mna --in /app/${DATASET_INPUT} --out /app/output/ --runs ${NUM_RUNS} --cs ${PAR_ALFA} --ccn ${PAR_BETA};
+        echo '✅ Execution finished. Waiting for changes...';
+      done
+      "
