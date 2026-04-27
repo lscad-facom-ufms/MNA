@@ -1,5 +1,6 @@
 services:
   mna-cpp-dev:
+    image: luizfxavier/mna:1.0
     build:
       context: .
       dockerfile: Dockerfile
