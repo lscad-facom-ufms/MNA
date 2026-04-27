@@ -8,6 +8,8 @@ share
 include
 
 __pycache__
+python/output
 
 cpp/build
 cpp/vcpkg_installed
+cpp/output
