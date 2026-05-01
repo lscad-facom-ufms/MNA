@@ -14,6 +14,7 @@ target_sources(libMNA
   FILE_SET cxx_modules TYPE CXX_MODULES FILES
   model/iot_network.mpp
   model/job.mpp
+  model/SoA.mpp
   io/cli_parser.mpp
   io/ParquetReader.mpp
   io/JsonReader.mpp
