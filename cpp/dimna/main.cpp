@@ -123,13 +123,13 @@ json_network(std::filesystem::path instance_file, mna::JsonReader& jsonReader){
     network->add_edge(edge_type{target, latency}, source); 
   };
   auto add_vertex = [&](int64_t R, int64_t B, int64_t busy, int64_t inactive){
-    network->add_vertex(vertex_type{R, B, busy, inactive});
+    network->add_vertex(vertex_type{(int)R, (int)B, (int)busy, (int)inactive});
   };
   
   mna::JobVector jobsV;
 
   auto add_job = [&](int64_t jr, int64_t jb, int64_t jl, int64_t jo){
-    jobsV.push_back(mna::Job{jr, jb, jl, jo});
+    jobsV.push_back(mna::Job{(int)jr, (int)jb, (int)jl, (int)jo});
   };
 
   jsonReader.read_instance(instance_file, add_vertex, add_edge, add_job);
@@ -151,7 +151,7 @@ setup_network(mna::InstanceStructure& instance, mna::ParquetReader& pr){
     network->add_edge(edge_type{target, latency}, source); 
   };
   auto add_vertex = [&](int64_t R, int64_t B, int64_t busy, int64_t inactive){
-    network->add_vertex(vertex_type{R, B, busy, inactive});
+    network->add_vertex(vertex_type{(int)R, (int)B, (int)busy, (int)inactive});
   };
   
   pr.read_vertexes(instance.nodes, add_vertex);
@@ -166,7 +166,7 @@ setup_jobs(std::filesystem::path& jobs_file, mna::ParquetReader& pr){
   mna::JobVector jobsV;
 
   auto add_job = [&](int64_t jr, int64_t jb, int64_t jl, int64_t jo){
-    jobsV.push_back(mna::Job{jr, jb, jl, jo});
+    jobsV.push_back(mna::Job{(int)jr, (int)jb, (int)jl, (int)jo});
   };
 
   pr.read_jobs(jobs_file, add_job);
