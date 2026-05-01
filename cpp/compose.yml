@@ -1,4 +1,54 @@
 services:
+  mna-sycl-dev:
+    image: luizfxavier/mna-sycl-dev:0.1
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    working_dir: /app/src
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: cdi
+              device_ids:
+                - nvidia.com/gpu=all
+              capabilities: [gpu]
+ 
+    volumes:
+      - type: bind
+        source: .
+        target: /app/src
+
+      - type: bind
+        source: ../inputs/
+        target: /app/inputs
+      
+      - type: bind
+        source: ${HOST_OUTPUT_DIR}
+        target: /app/output
+
+      - type: volume
+        target: /app/out/build/docker-sycl
+
+    command: >
+      /bin/bash -c "
+      echo '⚙️ Initializing...';
+      cmake --preset=docker-sycl &&
+      cmake --build --preset=docker-sycl;
+
+      echo '🔭 Watching for changes on /app/src...';
+
+      while inotifywait -q -r -e modify,create,delete /app/src
+      --exclude 'nohup.out|output|run.py'; do
+        echo '🔄 Change detected! Recompiling...';
+        cmake --build --preset docker-sycl; 
+
+        echo '✅ Execution finished. Waiting for changes...';
+       done
+      "
+
   mna-cpp-dev:
     image: luizfxavier/mna:1.0
     build:
