@@ -13,21 +13,19 @@ export module dimna.allocator.di_allocator;
 
 import mna.model.iot_network;
 import mna.model.job;
+
 import dimna.model.solution;
 import dimna.model.times;
+import dimna.allocator.constants;
 
 import dimna.policy.filter.fixed_filter;
 import dimna.policy.filter.canon_fixed_filter;
 
 import dimna.policy.searcher.fixed_searcher;
-import dimna.policy.searcher.openmp_fixed_searcher;
+// import dimna.policy.searcher.openmp_fixed_searcher;
 
 namespace mna::di {
 
-constexpr int64_t INF64 = 1LL << 40;
-constexpr int INF32 = 1 << 30;
-constexpr int t_c = 1;
-constexpr int INVALID_NODE = -1;
 
 export struct Result{
   std::vector<Solution> solutions;
@@ -187,5 +185,5 @@ export template<int CutSol> using FixedDiAllocator = DiAllocator<policy::FixedFi
 
 export template<int CutSol> using CanonFixedDiAllocator = DiAllocator<policy::CanonFixedFilter<CutSol>, policy::FixedSearcher<CutSol>>;
 
-export template<int CutSol> using OpenMPFixedAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::OpenMPFixedSearcher<CutSol>>;
+// export template<int CutSol> using OpenMPFixedAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::OpenMPFixedSearcher<CutSol>>;
 } // dimna namespace
