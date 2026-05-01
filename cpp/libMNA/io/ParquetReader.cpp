@@ -1,3 +1,4 @@
+module;
 #include <filesystem>
 #include <memory>
 #include <vector>
@@ -9,7 +10,7 @@
 #include <arrow/array.h>
 #include <arrow/table.h>
 #include <arrow/record_batch.h>
-import mna.io.parquet_reader;
+module mna.io.parquet_reader;
 
 namespace mna {
 

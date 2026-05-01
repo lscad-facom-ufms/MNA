@@ -1,9 +1,10 @@
+module;
 #include <filesystem>
 #include <memory>
 #include <vector>
 #include <fstream>
 #include <nlohmann/json.hpp>
-import mna.io.json_reader;
+module mna.io.json_reader;
 
 namespace mna {
 
