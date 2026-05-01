@@ -2,14 +2,14 @@ export module mna.model.iot_network;
 import graphs.model.graph; 
 namespace mna {
 
-struct IoTNode{
+export struct IoTNode{
   int resource;
   int bandwidth;
   int busy;
   int inactive;
 };
 
-struct IoTEdge{
+export struct IoTEdge{
   int target;
   int latency;
 };
