@@ -134,7 +134,7 @@ OutputWriter::write_final_output(std::vector<Solution>& sols, JobVector& jobs, T
   out_file << table << "\n\n";
 
   out_file << "Total OF: " << total_of << "\n";
-  out_file << "Runtime: " << time << "\n";
+  out_file << "Runtime: " << times.total << "\n";
 
   out_file << "latencies: " << times.latencies << " - " << (times.latencies / times.total) * 100 << "%\n";
   out_file << "filter  : " << times.filter << " - " << (times.filter / times.total) * 100 << "%\n";
