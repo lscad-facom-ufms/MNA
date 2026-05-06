@@ -33,16 +33,6 @@ RUN wget https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-sourc
   && apt-get install -y libarrow-dev libparquet-dev libarrow-dataset-dev \
   && rm apache-arrow-apt-source-latest-*.deb
 
-# RUN add-apt-repository ppa:ubuntu-toolchain-r/test -y \
-#   && apt-get update \
-#   && apt-get install -y gcc-15 g++-15 \
-#   && rm -rf /var/lib/apt/lists/*
-#
-# RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100 \
-#  && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100 \
-#  && update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-15 100 \
-#  && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-15 100
-
 ARG CMAKE_VERSION=4.3.1
 
 RUN curl -L "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" -o cmake.tar.gz \
@@ -65,3 +55,7 @@ RUN git clone https://github.com/microsoft/vcpkg.git && ./vcpkg/bootstrap-vcpkg.
 WORKDIR /app
 
 RUN apt install -y libomp-dev
+
+RUN mkdir -p /usr/lib/nvidia-cuda-toolkit/libdevice/
+
+RUN ln -s /usr/local/cuda/nvvm/libdevice/libdevice.10.bc /usr/lib/nvidia-cuda-toolkit/libdevice/libdevice.10.bc
