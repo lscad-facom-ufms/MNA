@@ -1,16 +1,19 @@
 cmake_minimum_required(VERSION 4.0)
 
-set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD
-  "451f2fe2-a8a2-47c3-bc32-94786d8fc91b"
-)
+# set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD
+#   "451f2fe2-a8a2-47c3-bc32-94786d8fc91b"
+# )
 
 project(graphs VERSION 0.0.1 LANGUAGES CXX)
 
 include(CTest)
 
-set(CMAKE_CXX_MODULE_STD 1)
-
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# set(CMAKE_CXX_MODULE_STD 1)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 option(ENABLE_COVERAGE "Activate flags for gcov" OFF)
 option(ENABLE_GPROG "Activate gprof" OFF)
@@ -29,8 +32,11 @@ endif()
 add_subdirectory(libgraphs)
 add_subdirectory(libMNA)
 add_subdirectory(libdimna)
-add_subdirectory(dimna)
-add_subdirectory(canon_dimna)
+# add_subdirectory(dimna)
+
+add_subdirectory(libdimna_sycl)
+add_subdirectory(dimna_sycl)
+# add_subdirectory(canon_dimna)
 # add_subdirectory(openmp_fixed_dimna)
 
 # if (BUILD_TESTING)
