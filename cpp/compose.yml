@@ -15,14 +15,21 @@ services:
               device_ids:
                 - nvidia.com/gpu=all
               capabilities: [gpu]
- 
+
+    environment:
+      - DATASET_INPUT=${DATASET_INPUT}
+      - NUM_RUNS=${NUM_RUNS}
+      - PAR_ALFA=${PAR_ALFA}
+      - PAR_BETA=${PAR_BETA}
+      - ACPP_TARGETS=generic
+
     volumes:
       - type: bind
         source: .
         target: /app/src
 
       - type: bind
-        source: ../inputs/
+        source: inputs/
         target: /app/inputs
       
       - type: bind
@@ -30,23 +37,13 @@ services:
         target: /app/output
 
       - type: volume
+        # source: ../out/
         target: /app/out/build/docker-sycl
 
     command: >
       /bin/bash -c "
-      echo '⚙️ Initializing...';
-      cmake --preset=docker-sycl &&
-      cmake --build --preset=docker-sycl;
-
-      echo '🔭 Watching for changes on /app/src...';
-
-      while inotifywait -q -r -e modify,create,delete /app/src
-      --exclude 'nohup.out|output|run.py'; do
-        echo '🔄 Change detected! Recompiling...';
-        cmake --build --preset docker-sycl; 
-
-        echo '✅ Execution finished. Waiting for changes...';
-       done
+        chmod +x /app/src/dev_env.sh
+        /app/src/dev_env.sh;      
       "
 
   mna-cpp-dev:
