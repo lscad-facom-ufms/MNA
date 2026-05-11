@@ -1,5 +1,5 @@
 """ NSGA-III Enhanced
-This is similar to the standard NSGA-III. However, it always considers the last best solution,
+This is similar to the standard NSGA-III. However, it always considers the last best solution, 
 the lowest value of the objective function (OF) as the final answer.
 
 Designed by Murilo Táparo - January 2025
@@ -15,19 +15,11 @@ matplotlib.use('Agg')  # Use backend 'Agg' to prevent displaying plots
 from deap import base, creator, tools, algorithms
 from deap.tools.indicator import hv
 from functools import partial
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import time
 import heapq
 import random
 import json
 import os
-import sys
-from sys import argv
-
-sys.path.append(os.path.join(os.path.dirname(sys.path[0]), "commandLine"))
-
-import commandLine as cl
 
 #---------------- Clear terminal window before program execution ---------------
 os.system('cls' if os.name == 'nt' else 'clear')
@@ -40,7 +32,7 @@ INF = 10**12  # Infinite Constant for int
 
 # NSGA3 Hyperparameter Default Values
 default_params = {
-  'population_size': 80, # The number of individuals in each generation of the population. Typical values: 200 to 500 initially and increase only if you notice weak convergence or a poorly explored front.
+  'population_size': 800, # The number of individuals in each generation of the population. Typical values: 200 to 500 initially and increase only if you notice weak convergence or a poorly explored front.
   'generations': 120, # The total number of generations the algorithm will execute. Each generation involves selection, crossover, and mutation to create a new population.
   'cx_prob': 0.7, # The probability of crossover between two individuals. This value indicates the fraction of the population selected to perform the crossover operation.
   'indpb': 0.1 # The probability of mutation for each gene (or variable) of an individual. If an individual is selected for mutation, this probability determines the chance of each gene being altered.
@@ -51,20 +43,20 @@ def read_hyper_parameters(directory):
     file_name = 'hyper_parameters.json'
     file_path = os.path.join(directory, file_name)
 
-    #print(f"Checking if file {file_name} exists in path: {file_path}")
+    print(f"Checking if file {file_name} exists in path: {file_path}")
 
     if os.path.exists(file_path):
-        #print(f"File {file_name} found. Trying to read parameters.")
+        print(f"File {file_name} found. Trying to read parameters.")
         with open(file_path, 'r') as file:
             try:
                 params = json.load(file)
-                #print(f"Parameters read from file: {params}")
+                print(f"Parameters read from file: {params}")
                 return params
             except json.JSONDecodeError as e:
-                #print(f"Error reading JSON file: {e}")
+                print(f"Error reading JSON file: {e}")
                 return default_params  # If there is an error, return the default values
     else:
-        #print(f"File {file_name} not found in directory {directory}. Using default values.")
+        print(f"File {file_name} not found in directory {directory}. Using default values.")
         return default_params  # If the file does not exist, use the default values
 
 def mark_busy(cont_nos_rede, v_nodes_network, V_Busy):
@@ -140,14 +132,14 @@ def jobConstraints(individual, l_job, job, jr, jb, N_R, N_B, N_L, numNodes, OF_p
     f0 = (np.sum(N_R[:numNodes] * individual[:numNodes])) - jr[job]
     f1 = (np.sum(N_B[:numNodes] * individual[:numNodes])) - jb[job]
     f2 = l_job - (np.sum(N_L[:numNodes] * individual[:numNodes]))
-
+    
     OF = f0**2 + f1**2 - f2
 
     # New constraint: OF cannot be greater than OF_previous_best
     c[3] = OF - OF_previous_best
-
+    
     # The return values ​​of c[0], c[1], c[2] and c[3] <=0
-    return c[0], c[1], c[2], c[3]
+    return c[0], c[1], c[2], c[3] 
 
 def get_positive_integer(prompt, default):
     while True:
@@ -231,13 +223,6 @@ def main(path_input, path_output, cut_sol, numRunnings):
   except IOError:
     raise Exception('Error creating or opening file for writing.')
   l_job = 0 # Latency Job: variable that stores the latency value of a job minus t_c (time connection)
-  # --------------------------------------------------------------------------------
-  # Create n_jobs empty lists to store the first 3 solutions of each job and,
-  # then perform all the combinations to find the smallest value of OF
-  #SS = [[] for _ in range(n_jobs)]  # Create n_jobs empty lists inside SS
-  # Cut is the variable that indicates the number of solutions for each job to be considered
-  # in the value of the final OF solution
-  #cut = 3
   # --------------------------------------------------------------------------------
   # Initial values ​​of vectors R and B
   N_R = np.array(data['V_R'])
@@ -382,13 +367,13 @@ def main(path_input, path_output, cut_sol, numRunnings):
 
       return individual, # Returning the mutated individual as a tuple (1 element)
   #-------------------------------------------------------------------------------
-
+ 
   #----------------------------------------------------------------------------------------------
   # Defining the attr_int function to generate int numbers: 0 or 1
   # Hybrid version (90% normal + 10% guaranteed)
   def attr_int():
       return 1 if random.random() < 0.1 else 0  # Increases the initial chance of activating nodes
-
+  
   def individual_with_min_ones():
     ind = [0] * numNodes
     ones_indices = random.sample(range(numNodes), cut_sol)
@@ -435,7 +420,7 @@ def main(path_input, path_output, cut_sol, numRunnings):
   v_all_OF = []
   # Stores all best v_nodes values ​​for each job
   v_all_nodes = []
-  # Stores all best v_nodes values ​​for each job
+  # Stores all best times v_nodes values ​​for each job
   v_all_times = []
   #-------------------------------------------------------------------------------
   # List of lists containing the search space of Latency of all nodes in the layer
@@ -456,11 +441,11 @@ def main(path_input, path_output, cut_sol, numRunnings):
       l_job = jl[job] - t_c
       N_L = get_latencies(source, adjList, numNodes)
       #------------- Printing job attribute values ​​to the screen -----------------
-      #print("\n---------------------------------------------------------")
-      #print(f"\n Scenario: {numNodes} nds - {n_jobs} jobs")
-      #print(f"\n Running: {r+1}/{numRunnings}")
-      #print(f"\n Job {job}[{jr[job]}, {jb[job]}, {jl[job]}, {jo[job]}] waiting...")
-      #print("\n---------------------------------------------------------\n")
+      print("\n---------------------------------------------------------")
+      print(f"\n Scenario: {numNodes} nds - {n_jobs} jobs")
+      print(f"\n Running: {r+1}/{numRunnings}")
+      print(f"\n Job {job}[{jr[job]}, {jb[job]}, {jl[job]}, {jo[job]}] waiting...")
+      print("\n---------------------------------------------------------\n")
       #---------------------------------------------------------------------------
       # ------------------------ Variables initialization ------------------------
       # Output value of the population generated by NSGA3
@@ -512,7 +497,7 @@ def main(path_input, path_output, cut_sol, numRunnings):
       #----------------------------------- Register the evaluate function and call the partial function with the parameters of a given job ------------------------------------------------------------
       # evaluate - calculates the fitness of an individual or a solution.
       # It is making use of statistics (stats=stats) or (stats=None)
-      #logbook =
+      #logbook = 
       algorithms.eaMuPlusLambda(population, toolbox, mu=population_size, lambda_=population_size, cxpb=cx_prob, mutpb=mut_prob, ngen=generations, stats=None, halloffame=None, verbose=False)
       #-----------------------------------------------------------------------------------------------------------------------------------
       # Obtaining the values ​​of the objective functions (R, B and L)
@@ -543,7 +528,7 @@ def main(path_input, path_output, cut_sol, numRunnings):
 
       # Creating a new list without duplicates
       final_population = np.array([(values[i], individuals[i]) for i in unique_indexes], dtype=object)
-
+      
       # Sorted final_population by v_sol_fx (first field)
       final_population = sorted(final_population, key=lambda x: x[0])
       final_population = np.array(final_population)  # Garante que é um array NumPy
@@ -649,7 +634,7 @@ def main(path_input, path_output, cut_sol, numRunnings):
       total_time += end_time
 
   #------------------- End for job in range(n_jobs): ---------------------------------------------------------------------
-  # ========== AUpdates the best solution on first running ========== #
+  # ========== Updates the best solution on first running ========== #
   if r == 0:
     Min_FX = OF_total
     num_empty_sublists_nsga3_better = sum(1 for sublist in v_all_nodes if len(sublist) == 0)
@@ -664,7 +649,7 @@ def main(path_input, path_output, cut_sol, numRunnings):
   num_empty_sublists_nsga3 = sum(1 for sublist in v_all_nodes if len(sublist) == 0)
   cond2 = (bool(v_all_nodes) and (num_empty_sublists_nsga3_better >= num_empty_sublists_nsga3))
 
-# ========== Selecting the solution to be printed ========== #
+  # ========== Selecting the solution to be printed ========== #
   if cond1 and cond2:
     # Update the best solution found
     Min_FX = OF_total
@@ -674,7 +659,7 @@ def main(path_input, path_output, cut_sol, numRunnings):
     # v_all_sol_feasible_better = v_all_sol_feasible.copy()
     v_all_OF_better = v_all_OF.copy()
     v_all_nodes_better = [list(nodes) for nodes in v_all_nodes]
-    v_all_times_better = v_all_times.copy()
+    v_all_times_better = total_time # Stores the elapsed time of each execution.
 
   # ========== Printing to output (always the "best" solution so far) ========== #
   output_content = f"\nInput file: {input_file_name}\n\n"
@@ -691,12 +676,12 @@ def main(path_input, path_output, cut_sol, numRunnings):
   OF_total = np.sum(v_all_OF_better)
   OF_execs.append(float(OF_total))
   v_all_nodes_execs[r] = [list(nodes) for nodes in v_all_nodes_better]
-  total_time = np.sum(v_all_times_better)
+  #total_time = np.sum(v_all_times_better)
   #-------- End: if (cond1 and cond2): ------------------------------------------------------------------------------------------
   #---------------------------------------------------------------------------------------------------------------------------------------------------------------
-  #print('-----------------------------------------------------------------------------------------')
-  #print(f'The results are in the file: {name_file}')
-  #print('-----------------------------------------------------------------------------------------')
+  print('-----------------------------------------------------------------------------------------')
+  print(f'The results are in the file: {name_file}')
+  print('-----------------------------------------------------------------------------------------')
   #-------------------------------------------------------------------------------------------------
   # Print the Job, OF and, allocated node
   fileID.write(output_content)
@@ -705,17 +690,17 @@ def main(path_input, path_output, cut_sol, numRunnings):
   fileID.write(f"\n\nRuntime: {total_time:,.4f} seconds")
   #----------------------------------------------------------------------------------------------------------
   #--------- Adds total_time to the times_execs variable (contains the times of all executions) -------------
-  times_execs.append(total_time)
+  times_execs.append(total_time) 
   #----------------------------------------------------------------------------------------------------------
-  # Prints to the file, only in the last execution, all the times (s) of the OF values ​​obtained
+  # Prints to the file, only in the last execution, all the times (s) of the OF values ​​obtained 
   if (r==(numRunnings-1)):
     fileID.write("\n--------------------------------------------------------------------------------------\n")
     fileID.write("\n--------------- Solutions generated by NSGA-III Enhanced -----------------------------")
-    fileID.write("\n----------------------------------- OF Execs -----------------------------------------")
+    fileID.write("\n----------------------------------- OF Execs -----------------------------------------") 
     fileID.write("\n" + "\n".join([f" {i:4d}: {OF_execs[i]:,.1f}" for i in range(numRunnings)]))
-    fileID.write("\n--------------------------------------------------------------------------------------")
-    fileID.write("\n------------------------------ v_all_nodes_execs -------------------------------------")
-    fileID.write("\n" + "\n".join([f" {i:4d}: {list(map(list, v_all_nodes_execs[i]))}" for i in range(numRunnings)]))
+    fileID.write("\n--------------------------------------------------------------------------------------") 
+    fileID.write("\n------------------------------ v_all_nodes_execs -------------------------------------") 
+    fileID.write("\n" + "\n".join([f" {i:4d}: {list(map(list, v_all_nodes_execs[i]))}" for i in range(numRunnings)])) 
     fileID.write("\n--------------------------------------------------------------------------------------")
     fileID.write("\n-------------------------------- Times Execs -----------------------------------------")
     fileID.write("\n" + "\n".join([f" {i:4d}: {times_execs[i]:,.4f}" for i in range(numRunnings)]))
@@ -723,7 +708,7 @@ def main(path_input, path_output, cut_sol, numRunnings):
     mean = np.mean(times_execs)
     if (numRunnings==1):
          sd = np.std(times_execs, ddof=0)  # For population (n), ddof=0 (Delta Degrees of Freedom)
-    else:
+    else:    
          sd = np.std(times_execs, ddof=1)  # For population (n-1), ddof=1 (Delta Degrees of Freedom)
 
     fileID.write(f"\n mean:  {mean:,.4f}")
@@ -736,36 +721,24 @@ def main(path_input, path_output, cut_sol, numRunnings):
 # Start of execution (main):
 
 # Setting default values (global)
-#default_cut_sol = 2
-#default_runnings = 1
+default_cut_sol = 2
+default_runnings = 1
 
 # Set the directory path where the .json files are located
 # Setting default values
-#default_in_f = r'C:\Users\Murilo\Documents\DOUTORADO\UFMS-FACOM\Material-Ricardo\Encontros-Ricardo\Encontro_55-08-07-2025\25nds\input'
-#default_out_f = r'C:\Users\Murilo\Documents\DOUTORADO\UFMS-FACOM\Material-Ricardo\Encontros-Ricardo\Encontro_55-08-07-2025\25nds\output'
+default_in_f = r'C:\Users\Murilo\Documents\DOUTORADO\UFMS-FACOM\Material-Ricardo\Encontros-Ricardo\Encontro_57-05-08-2025\25nds\input'
+default_out_f = r'C:\Users\Murilo\Documents\DOUTORADO\UFMS-FACOM\Material-Ricardo\Encontros-Ricardo\Encontro_57-05-08-2025\25nds\output'
 
 # Prompts user for directory path or uses default value if ENTER is pressed
-#input_folder = input(f"Enter an input directory path or press ENTER for default (ex: {default_in_f}): ") or default_in_f
+input_folder = input(f"Enter an input directory path or press ENTER for default (ex: {default_in_f}): ") or default_in_f
 
-#output_folder = input(f"Enter an output directory path or press ENTER for default (ex: {default_out_f}): ") or default_out_f
-
-
-# input_folder = '/home/jonatas/high-performance-execution/ExperimentSix/input/light/'
-
-# output_folder = '/home/jonatas/high-performance-execution/ExperimentSix/metaheuristic/enhanced/light/'
-
-input_folder, output_folder = cl.get_target_dirs(argv)
+output_folder = input(f"Enter an output directory path or press ENTER for default (ex: {default_out_f}): ") or default_out_f
 
 # Collecting the maximum number of nodes considered per solution of each Job
-#cut_sol = get_positive_integer("Value of the cutting radius of the maximum number of nodes considered per solution of each Job: ", default_cut_sol)
-
-cut_sol = 2
+cut_sol = get_positive_integer("Value of the cutting radius of the maximum number of nodes considered per solution of each Job: ", default_cut_sol)
 
 # Number of runnings of a given configuration
-#numRunnings = get_positive_integer(f"Number of runnings: ", default_runnings)
-
-numRunnings = 5
-
+numRunnings = get_positive_integer(f"Number of runnings: ", default_runnings)
 
 # Create the output folder if it doesn't exist; keep if it already exists
 if not os.path.exists(output_folder):
