@@ -1,0 +1,62 @@
+module;
+#include <cstdint>
+#include <vector>
+#include <memory>
+#include <queue>
+#include <set>
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <iostream>
+#include <chrono>
+// #include <sycl/sycl.hpp>
+
+export module dimna.allocator.sycl_allocator;
+
+import mna.model.job;
+import mna.model.soa;
+
+import dimna.model.solution;
+import dimna.model.times;
+import dimna.allocator.constants;
+
+import dimna.policy.latency.default_latency;
+
+namespace mna::di::par {
+
+export struct Result{
+  std::vector<Solution> solutions;
+  Times times;
+};
+
+export class SyclAllocator{
+public:
+  std::shared_ptr<IoTNetworkSoA> network;  
+  int cut_sol = 2;
+  int cut_comb_nodes = 500;
+  size_t num_nodes{};
+
+  policy::DefaultLatency lp;
+
+public:
+
+  using network_type = IoTNetworkSoA;
+
+  SyclAllocator(std::shared_ptr<IoTNetworkSoA> network, int cut_sol, int cut_comb_nodes)
+  :network(network), cut_sol(cut_sol), cut_comb_nodes(cut_comb_nodes){
+    num_nodes = (size_t)network->vertex_count();
+  }
+
+  SyclAllocator() = default;
+
+  Result run_mna_jobs(JobVector& jobs);
+
+  void reset_nodes(){
+    auto& nodes = network->vertexes();
+    for (int i = 0; i < network->vertex_count(); ++i){
+      nodes.busy[i] = 0;
+    }
+  }
+};
+
+} // mna::di::sycl namespace
