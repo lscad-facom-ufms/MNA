@@ -15,6 +15,8 @@ target_sources(libdimna
   model/Solution.mpp
   model/Options.mpp
   model/Times.mpp
+
+  policy/latency/DefaultLatency.mpp
   policy/filter/FixedFilter.mpp
   policy/filter/CanonFixedFilter.mpp
   policy/searcher/FixedSearcher.mpp

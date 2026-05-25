@@ -19,7 +19,7 @@ export struct Parameters{
 export template<typename DiAllocator>
 class DiRunner {
 public:
-  DiRunner(std::shared_ptr<IoTNetwork> network, Options opt)
+  DiRunner(std::shared_ptr<typename DiAllocator::network_type> network, Options opt)
   :allocator(network, opt.cut_sol, opt.cut_comb_nodes), ow(opt.output_dir), numRunnings(opt.numRunnings){};
   void run_mna_jobs_batch(JobVector& jobs);
 private:

@@ -18,6 +18,8 @@ import dimna.model.solution;
 import dimna.model.times;
 import dimna.allocator.constants;
 
+import dimna.policy.latency.default_latency;
+
 import dimna.policy.filter.fixed_filter;
 import dimna.policy.filter.canon_fixed_filter;
 
@@ -32,7 +34,7 @@ export struct Result{
   Times times;
 };
 
-export template <typename FilterPolicy, typename SearchPolicy>
+export template <typename FilterPolicy, typename SearchPolicy, typename LatencyPolicy = mna::di::policy::DefaultLatency>
 class DiAllocator{
 public:
   DiAllocator(std::shared_ptr<IoTNetwork> network, int cut_sol, int cut_comb_nodes)
@@ -40,6 +42,8 @@ public:
   DiAllocator() = default;
 
   Result run_mna_jobs(JobVector& jobs);
+
+  using network_type = IoTNetwork;
 //private:
   std::shared_ptr<IoTNetwork> network;  
   int cut_sol;
@@ -47,7 +51,8 @@ public:
 
   void get_latencies(int origin, std::vector<int32_t>& latencies);
   std::vector<int> preselect_nodes(Job& job, std::vector<int32_t>& latencies);
-
+  
+  LatencyPolicy lp;
   FilterPolicy fp;
   SearchPolicy sp;
 
@@ -59,9 +64,9 @@ public:
   }
 };
 
-template <typename FilterPolicy, typename SearchPolicy>
+template <typename FilterPolicy, typename SearchPolicy, typename LatencyPolicy>
 Result
-DiAllocator<FilterPolicy, SearchPolicy>::run_mna_jobs(JobVector& jobs){
+DiAllocator<FilterPolicy, SearchPolicy, LatencyPolicy>::run_mna_jobs(JobVector& jobs){
   
   int num_nodes = network->vertex_count();
   std::vector<int32_t> latencies(num_nodes);
@@ -72,20 +77,29 @@ DiAllocator<FilterPolicy, SearchPolicy>::run_mna_jobs(JobVector& jobs){
 
   auto& nodes = network->vertexes();
 
-  Times times{};  
+  Times times{};
+
+  int k = 0;
 // int t = 0;
   for (auto& job : jobs){
+
+    // std::cout << "Job " << k++ << "\n";
+
     auto origin = job.origin;
     
     auto start = std::chrono::steady_clock::now();
     
+    auto start_real = std::chrono::steady_clock::now();
     // Getting the latencies from the origin node to all of the others on the network
-    get_latencies(origin, latencies);
+    // get_latencies(origin, latencies);
+
+    lp.get_latencies(this->network, origin, latencies);
     
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> diff_in_seconds = end - start;
     times.latencies += diff_in_seconds.count();
 
+    // std::cout << "Latency time: " << diff_in_seconds << "\n";
     start = std::chrono::steady_clock::now();
     
     // Filtering nodes based on wheter the job fits in a combination that includes it
@@ -103,6 +117,8 @@ DiAllocator<FilterPolicy, SearchPolicy>::run_mna_jobs(JobVector& jobs){
     diff_in_seconds = end - start;
     times.filter += diff_in_seconds.count();
 
+    // std::cout << "Filter time: " << diff_in_seconds << "\n";
+
     start = std::chrono::steady_clock::now();
 
     // Testing all combinations of nodes that passed the filter
@@ -111,6 +127,9 @@ DiAllocator<FilterPolicy, SearchPolicy>::run_mna_jobs(JobVector& jobs){
     end = std::chrono::steady_clock::now();
     diff_in_seconds = end - start;
     times.search += diff_in_seconds.count();
+
+
+    // std::cout << "Search time: " << diff_in_seconds << "\n";
 
     if (solution.of < INF64){
 
@@ -132,7 +151,16 @@ DiAllocator<FilterPolicy, SearchPolicy>::run_mna_jobs(JobVector& jobs){
     // Sets OF to zero if no valid combination was found
       solutions.push_back({0, std::vector<int>()});
     }
-    
+
+    end = std::chrono::steady_clock::now();
+    diff_in_seconds = end - start;
+    // std::cout << "Fez tudo em " << diff_in_seconds << "s\n";
+
+    // if (k > 1){
+    //
+    //   std::cout << "----------------------\n";
+    //   return Result{solutions, times};
+    // }
   }
   return Result{solutions, times};
 }
@@ -141,9 +169,9 @@ DiAllocator<FilterPolicy, SearchPolicy>::run_mna_jobs(JobVector& jobs){
 /* Sets latencies to hold the minimum latency path 
  * from the origin node to all the other nodes.
 */
-template <typename FilterPolicy, typename SearchPolicy>
+template <typename FilterPolicy, typename SearchPolicy, typename LatencyPolicy>
 void
-DiAllocator<FilterPolicy, SearchPolicy>::get_latencies(int origin, std::vector<int32_t>& latencies){
+DiAllocator<FilterPolicy, SearchPolicy, LatencyPolicy>::get_latencies(int origin, std::vector<int32_t>& latencies){
 
   struct nodePair{
     int32_t latency;
