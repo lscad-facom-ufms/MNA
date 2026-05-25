@@ -22,6 +22,7 @@ services:
       - PAR_ALFA=${PAR_ALFA}
       - PAR_BETA=${PAR_BETA}
       - ACPP_TARGETS=generic
+      - ACPP_DEBUG_LEVEL=1
 
     volumes:
       - type: bind
@@ -29,7 +30,7 @@ services:
         target: /app/src
 
       - type: bind
-        source: inputs/
+        source: ../inputs/
         target: /app/inputs
       
       - type: bind
@@ -53,6 +54,12 @@ services:
       dockerfile: Dockerfile
 
     working_dir: /app/src
+
+    environment:
+      - DATASET_INPUT=${DATASET_INPUT}
+      - NUM_RUNS=${NUM_RUNS}
+      - PAR_ALFA=${PAR_ALFA}
+      - PAR_BETA=${PAR_BETA}
 
     volumes:
       - type: bind

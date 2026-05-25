@@ -40,6 +40,5 @@ while inotifywait -q -r -e modify,create,delete /app/src --exclude 'nohup.out|ou
       --runs "${NUM_RUNS}" \
       --cs "${PAR_ALFA}" \
       --ccn "${PAR_BETA}";
-
   echo "✅ Execution finished. Waiting for changes..."
 done
