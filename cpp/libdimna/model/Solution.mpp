@@ -11,4 +11,28 @@ export struct Solution{
   std::vector<int> nodes;
 };
 
+export struct SolutionPair{
+  
+  int of;
+  int node_i;
+  int node_j;
+
+  inline bool operator<(const SolutionPair& other) const {
+
+    return of < other.of;
+  }
+};
+
+export struct SolutionTriplet{
+  
+  int of;
+  int node_i;
+  int node_j;
+  int node_k;
+
+  inline bool operator<(const SolutionTriplet& other) const {
+
+    return of < other.of;
+  }
+};
 } // mna::di namespace
