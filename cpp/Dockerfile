@@ -59,3 +59,5 @@ RUN apt install -y libomp-dev
 RUN mkdir -p /usr/lib/nvidia-cuda-toolkit/libdevice/
 
 RUN ln -s /usr/local/cuda/nvvm/libdevice/libdevice.10.bc /usr/lib/nvidia-cuda-toolkit/libdevice/libdevice.10.bc
+
+RUN apt install -y python3
