@@ -88,8 +88,6 @@ DiAllocator<FilterPolicy, SearchPolicy, LatencyPolicy>::run_mna_jobs(JobVector& 
     auto origin = job.origin;
     
     auto start = std::chrono::steady_clock::now();
-    
-    auto start_real = std::chrono::steady_clock::now();
     // Getting the latencies from the origin node to all of the others on the network
     // get_latencies(origin, latencies);
 

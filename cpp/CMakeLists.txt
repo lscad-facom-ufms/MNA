@@ -32,7 +32,7 @@ endif()
 add_subdirectory(libgraphs)
 add_subdirectory(libMNA)
 add_subdirectory(libdimna)
-# add_subdirectory(dimna)
+add_subdirectory(dimna)
 
 add_subdirectory(libdimna_sycl)
 add_subdirectory(dimna_sycl)
