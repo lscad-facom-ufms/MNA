@@ -2,14 +2,14 @@ import subprocess
 import os
 
 base_in = "/app/inputs/parquet/"
-base_out = "/app/output/"
+base_out = "/app/output/real/"
 
 executable_path = "/app/out/build/docker-sycl/dimna_sycl/di_mna_sycl" 
 
-inputs = ["10nds", "100nds", "1_000nds", "10_000nds"]
-runs = "11"
-alfas = ["2"]
-betas = ["500"]
+inputs = ["10nds", "100nds", "1_000nds", "10_000nds", "100_000nds"]
+runs = "2"
+alfas = ["2", "3"]
+betas = ["500", "5000", "50000"]
 
 for input_name in inputs:
     for a in alfas:
