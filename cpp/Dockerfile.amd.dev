@@ -1,0 +1,64 @@
+FROM ubuntu:24.04 AS dev
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+  software-properties-common \
+  git \
+  build-essential \
+  ninja-build \
+  curl \
+  zip \
+  unzip \
+  tar \
+  flex \
+  bison \
+  pkg-config \
+  wget \
+  inotify-tools \
+  clang \
+  libclang-dev \
+  lld \
+  llvm-dev \
+  clang-tools \
+  libomp-dev
+
+RUN ln -s /usr/bin/clang-scan-deps-18 /usr/bin/clang-scan-deps || true
+
+#  Instalação do ROCm e HIP ---
+RUN wget https://repo.radeon.com/amdgpu-install/6.4/ubuntu/noble/amdgpu-install_6.4.60400-1_all.deb \
+    && apt-get install -y ./amdgpu-install_6.4.60400-1_all.deb \
+    && rm amdgpu-install_6.4.60400-1_all.deb \
+    && apt-get update \
+    && amdgpu-install -y --usecase=hip,hiplibsdk,rocm --no-dkms
+
+# Instalação do Apache Arrow ---
+RUN wget https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
+  && apt-get install -y \ 
+  ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
+  && apt-get update \
+  && apt-get install -y libarrow-dev libparquet-dev libarrow-dataset-dev \
+  && rm apache-arrow-apt-source-latest-*.deb
+
+ARG CMAKE_VERSION=4.3.1
+
+RUN curl -L "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" -o cmake.tar.gz \
+    && tar -xzf cmake.tar.gz -C /usr/local --strip-components=1 \
+    && rm cmake.tar.gz
+
+#  Compilação do AdaptiveCpp para AMD (ROCm Backend) ---
+RUN git clone https://github.com/AdaptiveCpp/AdaptiveCpp.git && \
+    cd AdaptiveCpp && \
+    mkdir build && cd build && \
+    cmake .. -DWITH_ROCM_BACKEND=ON -DCMAKE_INSTALL_PREFIX=/opt/acpp && \
+    make -j$(nproc) && \
+    make install
+
+# Setting up vcpkg
+WORKDIR /opt/
+
+RUN git clone https://github.com/microsoft/vcpkg.git && ./vcpkg/bootstrap-vcpkg.sh
+
+WORKDIR /app

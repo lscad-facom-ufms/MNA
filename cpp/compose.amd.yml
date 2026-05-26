@@ -1,0 +1,71 @@
+services:
+  mna-sycl-dev:
+    image: luizfxavier/mna-sycl-amd-dev:0.1
+    build:
+      context: .
+      dockerfile: Dockerfile.amd.dev
+
+    working_dir: /app/src
+
+    # Passagem da GPU AMD para o Contêiner
+    devices:
+      - "/dev/kfd:/dev/kfd"
+      - "/dev/dri:/dev/dri"
+
+    environment:
+      - DATASET_INPUT=${DATASET_INPUT}
+      - NUM_RUNS=${NUM_RUNS}
+      - PAR_ALFA=${PAR_ALFA}
+      - PAR_BETA=${PAR_BETA}
+      - ACPP_TARGETS=generic
+      - ACPP_DEBUG_LEVEL=1
+
+    volumes:
+      - type: bind
+        source: src/
+        target: /app/src
+
+      - type: bind
+        source: ../inputs/
+        target: /app/inputs
+
+      - type: bind
+        source: scripts/
+        target: /app/scripts
+
+      - type: bind
+        source: ${HOST_OUTPUT_DIR}
+        target: /app/output
+
+      - type: volume
+        target: /app/out/build/docker-sycl
+
+    command: >
+      /bin/bash -c "
+        chmod +x /app/scripts/dev_env.sh
+        /app/scripts/dev_env.sh;
+      "
+  mna-sycl-test:
+      image: luizfxavier/mna-sycl-amd-test:0.1
+      build:
+        context: .
+        dockerfile: Dockerfile.amd.test
+
+      # O script foi copiado para a raiz do /app no Dockerfile
+      working_dir: /app
+
+      devices:
+        - "/dev/kfd:/dev/kfd"
+        - "/dev/dri:/dev/dri"
+
+      volumes:
+        - type: bind
+          source: ../inputs/
+          target: /app/inputs
+
+        - type: bind
+          source: ${HOST_OUTPUT_DIR}
+          target: /app/output
+
+      # Executa o orquestrador em Python
+      command: python3 /app/docker_run.py

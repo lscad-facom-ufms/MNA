@@ -52,8 +52,8 @@ WORKDIR /app
 
 # Python and runtime libraries
 RUN apt-get update && apt-get install -y wget python3 python3-pip libomp5 \
-    && wget https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
-    && apt-get install -y ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
+    && wget https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-noble.deb \
+    && apt-get install -y ./apache-arrow-apt-source-latest-noble.deb \
     && apt-get update \
     && apt-get install -y libarrow1400 libparquet1400 \
     && rm -rf /var/lib/apt/lists/* *.deb
@@ -62,5 +62,5 @@ RUN apt-get update && apt-get install -y wget python3 python3-pip libomp5 \
 COPY --from=builder /build_env/src/out/build/docker-sycl/dimna_sycl/di_mna_sycl /app/di_mna_sycl
 
 # Python script
-COPY scripts/docer_run.py /app/docker_run.py
+COPY scripts/docker_run.py /app/docker_run.py
 
