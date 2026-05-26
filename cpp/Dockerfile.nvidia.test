@@ -1,0 +1,66 @@
+# Builder stage
+
+FROM nvidia/cuda:12.5.1-devel-ubuntu24.04 AS builder
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /build_env
+
+# System dependencies and Python
+RUN apt-get update && apt-get install -y \
+  software-properties-common git build-essential ninja-build curl zip unzip tar flex bison \
+  pkg-config wget inotify-tools clang libclang-dev lld llvm-dev clang-tools libomp-dev python3
+
+RUN ln -s /usr/bin/clang-scan-deps-18 /usr/bin/clang-scan-deps || true
+
+# Apache Arrow
+RUN wget https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
+  && apt-get install -y ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
+  && apt-get update \
+  && apt-get install -y libarrow-dev libparquet-dev libarrow-dataset-dev
+
+# CMake
+ARG CMAKE_VERSION=4.3.1
+RUN curl -L "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" -o cmake.tar.gz \
+    && tar -xzf cmake.tar.gz -C /usr/local --strip-components=1 && rm cmake.tar.gz
+
+# AdaptiveCpp (CUDA Backend)
+RUN git clone https://github.com/AdaptiveCpp/AdaptiveCpp.git /opt/AdaptiveCpp && \
+    cd /opt/AdaptiveCpp && mkdir build && cd build && \
+    cmake .. -DWITH_CUDA_BACKEND=ON -DCMAKE_INSTALL_PREFIX=/opt/acpp \
+    -DCUDAToolkit_LIBRARY_ROOT=/usr/lib/nvidia-cuda-toolkit \
+    -DCUDA_DEVICE_LIBS_PATH=/usr/lib/nvidia-cuda-toolkit/libdevice && \
+    make -j$(nproc) && make install
+
+# vcpkg
+RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg && /opt/vcpkg/bootstrap-vcpkg.sh
+
+# LLVM driver setup
+RUN mkdir -p /usr/lib/nvidia-cuda-toolkit/libdevice/ && \
+    ln -s /usr/local/cuda/nvvm/libdevice/libdevice.10.bc /usr/lib/nvidia-cuda-toolkit/libdevice/libdevice.10.bc
+
+# Project compilation
+COPY src/ /build_env/src/
+WORKDIR /build_env/src
+# Usage of docker-sycl preset for ACPP setup
+RUN cmake --preset=docker-sycl && cmake --build --preset=docker-sycl
+
+# =====================================
+# Runtime stage
+
+FROM nvidia/cuda:12.5.1-runtime-ubuntu24.04 AS runtime
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /app
+
+# Python and runtime libraries
+RUN apt-get update && apt-get install -y wget python3 python3-pip libomp5 \
+    && wget https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
+    && apt-get install -y ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
+    && apt-get update \
+    && apt-get install -y libarrow1400 libparquet1400 \
+    && rm -rf /var/lib/apt/lists/* *.deb
+
+# executable 
+COPY --from=builder /build_env/src/out/build/docker-sycl/dimna_sycl/di_mna_sycl /app/di_mna_sycl
+
+# Python script
+COPY scripts/docer_run.py /app/docker_run.py
+

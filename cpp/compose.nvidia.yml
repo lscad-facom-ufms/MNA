@@ -1,0 +1,53 @@
+services:
+  mna-sycl-dev:
+    image: luizfxavier/mna-sycl-dev:0.1
+    build:
+      context: .
+      dockerfile: Dockerfile.nvidia.dev
+
+    working_dir: /app/src
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: cdi
+              device_ids:
+                - nvidia.com/gpu=all
+              capabilities: [gpu]
+
+    environment:
+      - DATASET_INPUT=${DATASET_INPUT}
+      - NUM_RUNS=${NUM_RUNS}
+      - PAR_ALFA=${PAR_ALFA}
+      - PAR_BETA=${PAR_BETA}
+      - ACPP_TARGETS=generic
+      - ACPP_DEBUG_LEVEL=1
+
+    volumes:
+      - type: bind
+        source: ./src
+        target: /app/src
+
+      - type: bind
+        source: ../inputs/
+        target: /app/inputs
+      
+      - type: bind
+        source: ./scripts/
+        target: /app/scripts
+
+      - type: bind
+        source: ${HOST_OUTPUT_DIR}
+        target: /app/output
+
+      - type: volume
+        # source: ../out/
+        target: /app/src/out/build/docker-sycl
+
+    command: >
+      /bin/bash -c "
+        chmod +x /app/scripts/dev_env.sh
+        /app/scripts/dev_env.sh;      
+      "
+
