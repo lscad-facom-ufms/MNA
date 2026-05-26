@@ -1,0 +1,84 @@
+module;
+
+#include <stdexcept>
+#include <string>
+#include <cstring>
+#include <unordered_map>
+#include <format>
+#include <iostream>
+export module mna.io.cli_parser;
+
+namespace mna {
+
+export struct Config{
+  std::string input_folder{};
+  std::string output_folder{};
+  bool showHelp{};
+};
+
+export using OptionsMap = std::unordered_map<std::string, std::string*>;
+
+export Config
+read_CLI (int argc, char* argv[], const mna::OptionsMap extra_options = {}){
+
+  using namespace std;
+  
+  auto valid_argument = [&](const char* b, int i){
+    return std::strcmp(argv[i], b) == 0;
+  };
+
+  auto is_help = [&](int i){
+    return std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "--help") == 0;
+  };
+
+  mna::Config targets{};
+
+  for(int i = 1; i < argc; ++i){
+
+    string arg = argv[i];
+    if(is_help(i)){
+      targets.showHelp = true;
+      return targets;
+    }
+
+    if (valid_argument("--in", i) || valid_argument("--input", i)){
+      if(i+1 > argc)
+        throw runtime_error(format("Error: {} option requires a directory path.", arg));
+
+      targets.input_folder = argv[i+1];
+      ++i;
+    }
+
+    else if(valid_argument("--out", i) || valid_argument("--output", i)){
+      if(i+1 > argc)
+        throw runtime_error(format("Error: {} option requires a directory path.", arg));
+
+      targets.output_folder = argv[i+1]; 
+      ++i;
+    }
+
+    else if (extra_options.count(std::string(arg))){ 
+      if(i+1 > argc)
+        throw runtime_error(format("Error: {} option requires a value.", arg));
+
+      std::string* target_ptr = extra_options.at(arg);
+      *target_ptr = argv[i+1];
+      ++i;
+    }
+    else{
+      throw runtime_error(format("Error: Unknown \'{}\' option.", arg));
+    }
+
+  }
+  if(targets.input_folder.empty())
+      throw runtime_error("Error: Missing --input option.");
+
+  if(targets.output_folder.empty())
+      throw runtime_error("Error: Missing --output option.");
+
+  return targets;
+}
+
+
+
+} // namespace mna

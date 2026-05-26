@@ -1,0 +1,49 @@
+module;
+#include <stdexcept>
+#include <vector>
+export module mna.model.soa;
+import graphs.model.graph;
+import mna.model.iot_network;
+
+namespace mna{
+
+export class IoTNodeSoA{
+  
+  int _total_vertexes{};
+  int _vertex_count{};
+
+public:
+  std::vector<int> resource;
+  std::vector<int> bandwidth;
+  std::vector<int> busy;
+
+  using vertex_type = IoTNode;
+  
+  void add_vertex(IoTNode node){
+    // if (_total_vertexes == _vertex_count)
+      // throw std::runtime_error("Error: Node vector out of range addition.");
+
+    resource.push_back(node.resource);
+    bandwidth.push_back(node.bandwidth);
+    busy.push_back(node.busy);
+
+    ++_vertex_count;
+  }
+
+  void set_total_vertexes(int n){
+    _total_vertexes = n;
+
+    resource.reserve(n);
+    bandwidth.reserve(n);
+    busy.reserve(n);
+  }
+
+  int vertex_count(){
+    return _vertex_count;
+  }
+
+};
+
+export using IoTNetworkSoA = graphs::Graph<IoTNodeSoA, graphs::EdgeAdjacencyList<IoTEdge>>;
+
+}

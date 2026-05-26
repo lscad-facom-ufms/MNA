@@ -1,0 +1,11 @@
+module;
+#include <cstdint>
+export module dimna.allocator.constants;
+
+namespace mna::di {
+export constexpr int64_t INF64 = 1LL << 40;
+export constexpr int INF32 = 1 << 30;
+export constexpr int t_c = 1;
+export constexpr int INVALID_NODE = -1;
+
+}

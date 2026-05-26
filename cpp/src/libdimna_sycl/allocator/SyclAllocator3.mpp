@@ -1,0 +1,91 @@
+module;
+#include <cstdint>
+#include <vector>
+#include <memory>
+#include <queue>
+#include <set>
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <iostream>
+#include <chrono>
+// #include <sycl/sycl.hpp>
+
+export module dimna.allocator.sycl_allocator3;
+
+import mna.model.job;
+import mna.model.soa;
+
+import dimna.model.solution;
+import dimna.model.times;
+import dimna.allocator.constants;
+
+import dimna.policy.latency.default_latency;
+
+import dimna.policy.filter.soa_filter;
+
+namespace mna::di::par {
+
+export struct Result{
+  std::vector<Solution> solutions;
+  Times times;
+};
+
+export class SyclAllocator3{
+public:
+  std::shared_ptr<IoTNetworkSoA> network;  
+  int cut_sol = 3;
+  int cut_comb_nodes = 500;
+  size_t num_nodes{};
+
+  policy::DefaultLatency lp;
+  policy::SoAFilter<3> fp;
+
+public:
+
+  using network_type = IoTNetworkSoA;
+ 
+  SyclAllocator3(std::shared_ptr<IoTNetworkSoA> network, int cut_sol, int cut_comb_nodes)
+  :network(network), cut_sol(cut_sol), cut_comb_nodes(cut_comb_nodes){
+    num_nodes = (size_t)network->vertex_count();
+  }
+
+  SyclAllocator3() = default;
+
+  Result run_mna_jobs(JobVector& jobs);
+
+  struct FilterStruct{
+    mna::IoTNodeSoA filtered_nodes;
+    std::vector<int32_t> filtered_latencies;
+    std::vector<int> mapping;
+    size_t num_nodes{};
+  };
+
+  FilterStruct filter_nodes(mna::Job& job, std::vector<int32_t>& latencies){
+    
+    FilterStruct filter;
+
+    auto valid_indexes = fp.preselect_nodes(this->network, job, latencies, this->cut_comb_nodes);
+    
+    auto& nodes = network->vertexes();
+
+    for (auto i : valid_indexes){
+
+      filter.filtered_nodes.add_vertex({nodes.resource[i], nodes.bandwidth[i], 0, 0});
+      filter.filtered_latencies.push_back(latencies[i]);
+      filter.mapping.push_back(i);      
+    }
+    filter.num_nodes = filter.mapping.size();
+
+    return filter;
+  }
+
+  void reset_nodes(){
+    auto& nodes = network->vertexes();
+    for (int i = 0; i < network->vertex_count(); ++i){
+      nodes.busy[i] = 0;
+    }
+  }
+};
+
+} // mna::di::sycl namespace

@@ -1,0 +1,79 @@
+module;
+#include <algorithm>
+#include <iostream>
+#include <filesystem>
+#include <memory>
+#include <chrono>
+export module dimna.allocator.di_runner;
+import mna.model.iot_network;
+import mna.model.job;
+import dimna.io.output_writer;
+import dimna.model.options;
+
+namespace mna::di{
+
+export struct Parameters{
+  int cut_sol;
+  int cut_comb_nodes;
+};
+export template<typename DiAllocator>
+class DiRunner {
+public:
+  DiRunner(std::shared_ptr<typename DiAllocator::network_type> network, Options opt)
+  :allocator(network, opt.cut_sol, opt.cut_comb_nodes), ow(opt.output_dir), numRunnings(opt.numRunnings){};
+  void run_mna_jobs_batch(JobVector& jobs);
+private:
+  DiAllocator allocator;
+  OutputWriter ow;
+  int numRunnings;
+  
+  void reset_nodes(){
+    allocator.reset_nodes();
+  }
+  
+  const int amp[3] = {60, 1, 39};
+  const int amp_sum = amp[0] + amp[1] + amp[2];
+  const double w[3] = {0.253, 0.024, 0.723};
+  const double c[3] = {(amp[0] * w[0])/amp_sum, (amp[1] * w[1])/amp_sum, (amp[2] * w[2])/amp_sum};
+};
+
+template <typename DiAllocator>
+void
+DiRunner<DiAllocator>::run_mna_jobs_batch(JobVector& jobs){
+  
+  auto di = [&](const Job& j){
+    return (c[0] * j.resource) + (c[1] * j.bandwidth) - (c[2] * j.latency);
+  };
+
+  std::sort(jobs.begin(), jobs.end(), 
+            [&](const Job& a, const Job& b){
+              return di(a) > di(b);
+            });
+
+  InfoPayload info{allocator.cut_sol, allocator.cut_comb_nodes, 0, allocator.network->vertex_count()};
+
+  for (int r = 0; r < numRunnings; ++r){
+
+    info.curr_run = r;
+    
+    auto start = std::chrono::steady_clock::now();
+    
+    auto [solutions, times] = allocator.run_mna_jobs(jobs);
+
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff_in_seconds = end - start;
+    double exec_time = diff_in_seconds.count();
+    
+    times.total = exec_time;
+
+    if (numRunnings - 1 == r)
+      ow.write_final_output(solutions, jobs, times, info);
+    else
+        ow.write_output(solutions, jobs, times, info);
+    
+    reset_nodes();
+  }
+  ow.reset_times();
+}
+
+}

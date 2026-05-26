@@ -1,0 +1,13 @@
+export module test.graph;
+
+namespace test{
+
+export struct Vertex{
+  int value;
+};
+
+export struct Edge{
+  int dest;
+  int latency;
+};
+}

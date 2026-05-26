@@ -1,0 +1,54 @@
+module;
+#include <cstdint>
+#include <queue>
+export module dimna.policy.latency.default_latency;
+import dimna.allocator.constants;
+
+namespace mna::di::policy {
+
+export class DefaultLatency{
+
+public:
+ 
+  template <class Network>
+  void get_latencies(Network& network, int origin, std::vector<int32_t>& latencies){
+
+    struct nodePair{
+      int32_t latency;
+      int32_t node;
+    };
+
+    auto cmp = [](nodePair a, nodePair b){return a.latency > b.latency;};
+    std::priority_queue<nodePair, std::vector<nodePair>, decltype(cmp)> heap(cmp);
+
+    // Resets the latencies vector
+    std::fill(latencies.begin(), latencies.end(), INF32);
+    
+    // Inclusion of origin node
+    latencies[origin] = 0;
+
+    heap.push(nodePair{0, origin});
+    
+    while (!heap.empty()) {
+      auto [curr_lat, node] = heap.top();
+      heap.pop();
+      
+      if (curr_lat > latencies[node])
+        continue;
+      
+      // Getting all adjacent nodes
+      const auto& edges = network->get_vertex_edges(node);
+
+      for (auto [target, weight] : edges){
+        // Adds node back into the heap if the path is cheaper or includes it for the first time
+        if (latencies[target] > curr_lat + weight){
+          latencies[target] = curr_lat + weight;
+          heap.push(nodePair{latencies[target], target});
+        }
+      } 
+    }
+  }
+};
+
+
+}

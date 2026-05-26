@@ -1,0 +1,215 @@
+module;
+#include <cstdint>
+#include <vector>
+#include <memory>
+#include <queue>
+#include <set>
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <iostream>
+#include <chrono>
+export module dimna.allocator.di_allocator;
+
+import mna.model.iot_network;
+import mna.model.job;
+
+import dimna.model.solution;
+import dimna.model.times;
+import dimna.allocator.constants;
+
+import dimna.policy.latency.default_latency;
+
+import dimna.policy.filter.fixed_filter;
+import dimna.policy.filter.canon_fixed_filter;
+
+import dimna.policy.searcher.fixed_searcher;
+// import dimna.policy.searcher.openmp_fixed_searcher;
+
+namespace mna::di {
+
+
+export struct Result{
+  std::vector<Solution> solutions;
+  Times times;
+};
+
+export template <typename FilterPolicy, typename SearchPolicy, typename LatencyPolicy = mna::di::policy::DefaultLatency>
+class DiAllocator{
+public:
+  DiAllocator(std::shared_ptr<IoTNetwork> network, int cut_sol, int cut_comb_nodes)
+  :network(network), cut_sol(cut_sol), cut_comb_nodes(cut_comb_nodes){}
+  DiAllocator() = default;
+
+  Result run_mna_jobs(JobVector& jobs);
+
+  using network_type = IoTNetwork;
+//private:
+  std::shared_ptr<IoTNetwork> network;  
+  int cut_sol;
+  int cut_comb_nodes;
+
+  void get_latencies(int origin, std::vector<int32_t>& latencies);
+  std::vector<int> preselect_nodes(Job& job, std::vector<int32_t>& latencies);
+  
+  LatencyPolicy lp;
+  FilterPolicy fp;
+  SearchPolicy sp;
+
+  void reset_nodes(){
+    auto& nodes = network->vertexes();
+    for (int i = 0; i < network->vertex_count(); ++i){
+      nodes[i].busy = 0;
+    }
+  }
+};
+
+template <typename FilterPolicy, typename SearchPolicy, typename LatencyPolicy>
+Result
+DiAllocator<FilterPolicy, SearchPolicy, LatencyPolicy>::run_mna_jobs(JobVector& jobs){
+  
+  int num_nodes = network->vertex_count();
+  std::vector<int32_t> latencies(num_nodes);
+
+  int num_jobs = jobs.size();
+  std::vector<Solution> solutions;
+  solutions.reserve(num_jobs);
+
+  auto& nodes = network->vertexes();
+
+  Times times{};
+
+  int k = 0;
+// int t = 0;
+  for (auto& job : jobs){
+
+    // std::cout << "Job " << k++ << "\n";
+
+    auto origin = job.origin;
+    
+    auto start = std::chrono::steady_clock::now();
+    // Getting the latencies from the origin node to all of the others on the network
+    // get_latencies(origin, latencies);
+
+    lp.get_latencies(this->network, origin, latencies);
+    
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff_in_seconds = end - start;
+    times.latencies += diff_in_seconds.count();
+
+    // std::cout << "Latency time: " << diff_in_seconds << "\n";
+    start = std::chrono::steady_clock::now();
+    
+    // Filtering nodes based on wheter the job fits in a combination that includes it
+    auto filtered_nodes = fp.preselect_nodes(network, job, latencies, cut_comb_nodes);
+
+    // if(true){
+    //   std::cout << t++ << "\n";
+    //   std::cout << "size:" << jobs.size() << "\n";
+    //   for(auto f : filtered_nodes)
+    //       std::cout << f << ",";
+    //   std::cout << "\n\n";
+    // }
+
+    end = std::chrono::steady_clock::now();
+    diff_in_seconds = end - start;
+    times.filter += diff_in_seconds.count();
+
+    // std::cout << "Filter time: " << diff_in_seconds << "\n";
+
+    start = std::chrono::steady_clock::now();
+
+    // Testing all combinations of nodes that passed the filter
+    Solution solution = sp.find_best_comb(network, job, filtered_nodes, latencies);
+    
+    end = std::chrono::steady_clock::now();
+    diff_in_seconds = end - start;
+    times.search += diff_in_seconds.count();
+
+
+    // std::cout << "Search time: " << diff_in_seconds << "\n";
+
+    if (solution.of < INF64){
+
+      // Mark valid nodes as busy, removing placeholder node indexes
+      for (int i = solution.nodes.size() - 1; i >= 0; --i){
+        
+        if (solution.nodes[i] < 0){
+          solution.nodes.pop_back();
+        }
+        else{
+          int n = solution.nodes[i];
+          nodes[n].busy = 1;
+        }
+      }
+      
+      solutions.push_back(solution);
+    }
+    else{
+    // Sets OF to zero if no valid combination was found
+      solutions.push_back({0, std::vector<int>()});
+    }
+
+    end = std::chrono::steady_clock::now();
+    diff_in_seconds = end - start;
+    // std::cout << "Fez tudo em " << diff_in_seconds << "s\n";
+
+    // if (k > 1){
+    //
+    //   std::cout << "----------------------\n";
+    //   return Result{solutions, times};
+    // }
+  }
+  return Result{solutions, times};
+}
+
+
+/* Sets latencies to hold the minimum latency path 
+ * from the origin node to all the other nodes.
+*/
+template <typename FilterPolicy, typename SearchPolicy, typename LatencyPolicy>
+void
+DiAllocator<FilterPolicy, SearchPolicy, LatencyPolicy>::get_latencies(int origin, std::vector<int32_t>& latencies){
+
+  struct nodePair{
+    int32_t latency;
+    int32_t node;
+  };
+
+  auto cmp = [](nodePair a, nodePair b){return a.latency > b.latency;};
+  std::priority_queue<nodePair, std::vector<nodePair>, decltype(cmp)> heap(cmp);
+
+  // Resets the latencies vector
+  std::fill(latencies.begin(), latencies.end(), INF32);
+  
+  // Inclusion of origin node
+  latencies[origin] = 0;
+
+  heap.push(nodePair{0, origin});
+  
+  while (!heap.empty()) {
+    auto [curr_lat, node] = heap.top();
+    heap.pop();
+    
+    if (curr_lat > latencies[node])
+      continue;
+    
+    // Getting all adjacent nodes
+    const auto& edges = network->get_vertex_edges(node);
+
+    for (auto [target, weight] : edges){
+      // Adds node back into the heap if the path is cheaper or includes it for the first time
+      if (latencies[target] > curr_lat + weight){
+        latencies[target] = curr_lat + weight;
+        heap.push(nodePair{latencies[target], target});
+      }
+    } 
+  }
+}
+
+export template<int CutSol> using FixedDiAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::FixedSearcher<CutSol>>;
+
+export template<int CutSol> using CanonFixedDiAllocator = DiAllocator<policy::CanonFixedFilter<CutSol>, policy::FixedSearcher<CutSol>>;
+
+// export template<int CutSol> using OpenMPFixedAllocator = DiAllocator<policy::FixedFilter<CutSol>, policy::OpenMPFixedSearcher<CutSol>>;
+} // dimna namespace

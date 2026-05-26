@@ -1,0 +1,13 @@
+module;
+#include <filesystem>
+export module dimna.model.options;
+
+namespace mna::di {
+export struct Options{
+  std::filesystem::path input_dir;
+  std::filesystem::path output_dir;
+  int cut_sol;
+  int cut_comb_nodes;
+  int numRunnings;
+};
+}
