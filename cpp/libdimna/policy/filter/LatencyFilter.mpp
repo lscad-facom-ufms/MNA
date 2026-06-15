@@ -1,0 +1,45 @@
+module;
+#include <cstdint>
+#include <set>
+#include <vector>
+#include <memory>
+#include <array>
+export module dimna.policy.filter.latency_filter;
+
+import dimna.model.solution;
+import mna.model.iot_network;
+import mna.model.job;
+
+namespace mna::di::policy {
+
+constexpr int64_t INF64 = 1LL << 40;
+constexpr int INF32 = 1 << 30;
+constexpr int t_c = 1;
+
+export class LatencyFilter{
+public:
+  std::vector<int>
+  preselect_nodes(std::shared_ptr<IoTNetwork> network, mna::Job& job, std::vector<int32_t>& latencies, int cut_comb_nodes){
+    
+    std::vector<int> valid_nodes;
+    int num_nodes = network->vertex_count();
+
+    auto& nodes = network->vertexes();
+
+    auto l_job = job.latency - t_c;
+    
+    for (int i = 0; i < num_nodes && combs_found < cut_comb_nodes; ++i){
+      if (static_cast<bool>(nodes[i].busy))
+        continue;
+    
+      auto single_L = latencies[i];
+      
+      if (single_L <= l_job){
+          valid_nodes.push_back(i);
+          ++combs_found;
+      }
+    }
+    return valid_nodes;
+  }
+};
+} // mna::di::policy namespace
