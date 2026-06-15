@@ -4,6 +4,7 @@ module;
 #include <filesystem>
 #include <memory>
 #include <chrono>
+#include <stdexcept>
 export module dimna.allocator.di_runner;
 import mna.model.iot_network;
 import mna.model.job;
@@ -26,6 +27,8 @@ private:
   DiAllocator allocator;
   OutputWriter ow;
   int numRunnings;
+
+  int sample_jobs{};
   
   void reset_nodes(){
     allocator.reset_nodes();
@@ -50,6 +53,20 @@ DiRunner<DiAllocator>::run_mna_jobs_batch(JobVector& jobs){
               return di(a) > di(b);
             });
 
+
+  JobVector sliceJobs;
+
+  if (slice_jobs > jobs.size()){
+    throw runtime_error(format("Error: Desired job sample ({}) is greater than total of jobs ({}).", sample_jobs, jobs.size()));
+  }
+
+  if (sample_jobs > 0){
+    sliceJobs.assign(jobs.begin(), jobs.begin() + sample_jobs);
+  }
+  else{
+    sliceJobs.assign(jobs.begin(), jobs.end());
+  }
+
   InfoPayload info{allocator.cut_sol, allocator.cut_comb_nodes, 0, allocator.network->vertex_count()};
 
   for (int r = 0; r < numRunnings; ++r){
@@ -58,7 +75,7 @@ DiRunner<DiAllocator>::run_mna_jobs_batch(JobVector& jobs){
     
     auto start = std::chrono::steady_clock::now();
     
-    auto [solutions, times] = allocator.run_mna_jobs(jobs);
+    auto [solutions, times] = allocator.run_mna_jobs(sliceJobs);
 
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> diff_in_seconds = end - start;
@@ -67,9 +84,9 @@ DiRunner<DiAllocator>::run_mna_jobs_batch(JobVector& jobs){
     times.total = exec_time;
 
     if (numRunnings - 1 == r)
-      ow.write_final_output(solutions, jobs, times, info);
+      ow.write_final_output(solutions, sliceJobs, times, info);
     else
-        ow.write_output(solutions, jobs, times, info);
+        ow.write_output(solutions, sliceJobs, times, info);
     
     reset_nodes();
   }

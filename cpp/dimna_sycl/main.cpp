@@ -103,18 +103,31 @@ setup_options(int argc, char* argv[]){
   std::string str_cs;
   std::string str_ccn;
   std::string str_nR;
+  std::string str_jobs;
 
   mna::OptionsMap map = {{"--cs", &str_cs},
                         {"--ccn", &str_ccn},
-                        {"--runs", &str_nR}};
+                        {"--runs", &str_nR},
+                        {"--jobs", &str_jobs}};
 
   mna::Config config = mna::read_CLI(argc, argv, map);
 
   int cut_sol = std::stoi(str_cs);
   int cut_comb_nodes = std::stoi(str_ccn);
   int numRunnings = std::stoi(str_nR);
+  
+  int sample_jobs;
+  try
+  {
+    sample_jobs = std::stoi::(str_jobs);
+  }
+  catch(const std::exception& e)
+  {
+    sample_jobs = 0;
+  }
+  
 
-  return {config.input_folder, config.output_folder, cut_sol, cut_comb_nodes, numRunnings};
+  return {config.input_folder, config.output_folder, cut_sol, cut_comb_nodes, numRunnings, sample_j};
 }
 
 JsonNetwork

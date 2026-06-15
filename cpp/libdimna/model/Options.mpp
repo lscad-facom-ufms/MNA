@@ -9,5 +9,6 @@ export struct Options{
   int cut_sol;
   int cut_comb_nodes;
   int numRunnings;
+  int sample_jobs{};
 };
 }
